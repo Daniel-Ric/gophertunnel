@@ -15,7 +15,6 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// Client is an instance of the realms api with a token.
 type Client struct {
 	tokenSrc   oauth2.TokenSource
 	xblToken   *auth.XBLToken
@@ -39,8 +38,6 @@ var (
 	ErrRealmNotFound    = errors.New("realm not found")
 )
 
-// NewClient returns a new Client instance with the supplied token source for authentication.
-// If httpClient is nil, http.DefaultClient will be used to request the realms api.
 func NewClient(src oauth2.TokenSource, httpClient *http.Client) *Client {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
@@ -51,7 +48,6 @@ func NewClient(src oauth2.TokenSource, httpClient *http.Client) *Client {
 	}
 }
 
-// Player is a player in a Realm.
 type Player struct {
 	UUID       string `json:"uuid"`
 	Name       string `json:"Name"`
@@ -61,64 +57,56 @@ type Player struct {
 	Permission string `json:"permission"`
 }
 
-// Realm is the realm structure returned from the api.
 type Realm struct {
-	// ID is the unique id for this realm.
 	ID int `json:"id"`
-	// RemoteSubscriptionID is The subscription ID of the realm.
+
 	RemoteSubscriptionID string `json:"remoteSubscriptionID"`
-	// Owner is always an empty string.
+
 	Owner string `json:"owner"`
-	// OwnerUUID is the XboxUserID (XUID) of the owner.
+
 	OwnerUUID string `json:"ownerUUID"`
-	// Name is the name of the Realm.
+
 	Name string `json:"name"`
-	// MOTD is always an empty string.
+
 	MOTD string `json:"motd"`
-	// DefaultPermission is the default permission level of the Realm world.
-	// one of ["MEMBER", "OPERATOR"]
+
 	DefaultPermission string `json:"defaultPermission"`
-	// State is the current state of the realm
-	// one of: ["OPEN", "CLOSED"]
+
 	State string `json:"state"`
-	// DaysLeft is the days remaining before renewal of the Realm as an integer.
-	// (always 0 for Realms where the current user is not the owner)
+
 	DaysLeft int `json:"daysLeft"`
-	// Expired is whether the Realm has expired as a trial or not.
+
 	Expired bool `json:"expired"`
-	// ExpiredTrial is whether the Realm has expired as a trial or not.
+
 	ExpiredTrial bool `json:"expiredTrial"`
-	// GracePeriod is whether the Realm is in its grace period after expiry or not.
+
 	GracePeriod bool `json:"gracePeriod"`
-	// WorldType is the world type of the currently loaded world.
+
 	WorldType string `json:"worldType"`
-	// Players is a list of the players currently online in the realm
-	// NOTE: this is only sent when directly requesting a realm.
+
 	Players []Player `json:"players"`
-	// MaxPlayers is how many player slots this realm has.
+
 	MaxPlayers int `json:"maxPlayers"`
-	// MinigameName is always null
+
 	MinigameName string `json:"minigameName"`
-	// MinigameID is always null
+
 	MinigameID string `json:"minigameId"`
-	// MinigameImage is always null
+
 	MinigameImage string `json:"minigameImage"`
-	// ActiveSlot is unused, always 1
+
 	ActiveSlot int `json:"activeSlot"`
-	// Slots is unused, always null
+
 	Slots []struct{} `json:"slots"`
-	// Member is Unknown, always false. (even when member or owner)
+
 	Member bool `json:"member"`
-	// ClubID is the ID of the associated Xbox Live club as an integer.
+
 	ClubID int64 `json:"clubId"`
-	// SubscriptionRefreshStatus is Unknown, always null.
+
 	SubscriptionRefreshStatus struct{} `json:"subscriptionRefreshStatus"`
 
-	// client is the instance of Client that this belongs to.
 	client *Client
 }
 
-// StoryOptIn is an opt-in state used by Realms Stories settings.
 type StoryOptIn string
 
 const (
@@ -127,7 +115,6 @@ const (
 	StoryOptInOptOut StoryOptIn = "OPT_OUT"
 )
 
-// StorySettings contains the settings controlling Realms Stories for a realm.
 type StorySettings struct {
 	AutoStories   bool       `json:"autostories"`
 	Coordinates   bool       `json:"coordinates"`
@@ -137,8 +124,6 @@ type StorySettings struct {
 	Timeline      bool       `json:"timeline"`
 }
 
-// RealmAddress contains the address returned by the Realms join endpoint along
-// with the signalling protocol used for connecting to it.
 type RealmAddress struct {
 	Address           string          `json:"address"`
 	NetworkProtocol   NetworkProtocol `json:"networkProtocol"`
@@ -149,8 +134,6 @@ type RealmAddress struct {
 	} `json:"sessionRegionData"`
 }
 
-// Address requests the address and protocol used to connect to this realm.
-// It will wait for the realm to start if it is currently offline.
 func (r *Realm) Address(ctx context.Context) (RealmAddress, error) {
 	if r.client == nil {
 		return RealmAddress{}, fmt.Errorf("realm client is nil")
@@ -158,8 +141,6 @@ func (r *Realm) Address(ctx context.Context) (RealmAddress, error) {
 	return r.client.RealmAddress(ctx, r.ID)
 }
 
-// RealmAddress requests the address and protocol used to connect to a realm
-// from the api, and waits for the realm to start if it is currently offline.
 func (r *Client) RealmAddress(ctx context.Context, realmID int) (RealmAddress, error) {
 	ticker := time.NewTicker(time.Second * 3)
 	defer ticker.Stop()
@@ -176,7 +157,7 @@ func (r *Client) RealmAddress(ctx context.Context, realmID int) (RealmAddress, e
 				case 404:
 					return RealmAddress{}, ErrRealmNotFound
 				case 403:
-					return RealmAddress{}, ErrPlayerNotInRealm
+					return RealmAddress{}, fmt.Errorf("%w: %w", ErrPlayerNotInRealm, err)
 				}
 				return RealmAddress{}, err
 			}
@@ -190,8 +171,6 @@ func (r *Client) RealmAddress(ctx context.Context, realmID int) (RealmAddress, e
 	}
 }
 
-// OnlinePlayers gets all the players currently on this realm,
-// Returns a 403 error if the current user is not the owner of the Realm.
 func (r *Realm) OnlinePlayers(ctx context.Context) (players []Player, err error) {
 	body, status, err := r.client.request(ctx, fmt.Sprintf("/worlds/%d", r.ID))
 	if err != nil {
@@ -212,7 +191,6 @@ func (r *Realm) OnlinePlayers(ctx context.Context) (players []Player, err error)
 	return response.Players, nil
 }
 
-// UpdateStorySettings updates the Realms Stories settings for this realm.
 func (r *Realm) UpdateStorySettings(ctx context.Context, settings StorySettings) error {
 	if r.client == nil {
 		return fmt.Errorf("realm client is nil")
@@ -220,7 +198,6 @@ func (r *Realm) UpdateStorySettings(ctx context.Context, settings StorySettings)
 	return r.client.UpdateStorySettings(ctx, r.ID, settings)
 }
 
-// StorySettings gets the Realms Stories settings for this realm.
 func (r *Realm) StorySettings(ctx context.Context) (StorySettings, error) {
 	if r.client == nil {
 		return StorySettings{}, fmt.Errorf("realm client is nil")
@@ -228,8 +205,6 @@ func (r *Realm) StorySettings(ctx context.Context) (StorySettings, error) {
 	return r.client.StorySettings(ctx, r.ID)
 }
 
-// OptInToStoryTimeline opts the authenticated player into this realm's Stories timeline
-// without changing any other Stories settings.
 func (r *Realm) OptInToStoryTimeline(ctx context.Context) error {
 	if r.client == nil {
 		return fmt.Errorf("realm client is nil")
@@ -237,7 +212,6 @@ func (r *Realm) OptInToStoryTimeline(ctx context.Context) error {
 	return r.client.OptInToStoryTimeline(ctx, r.ID)
 }
 
-// StorySettings gets the Realms Stories settings for a realm.
 func (r *Client) StorySettings(ctx context.Context, realmID int) (StorySettings, error) {
 	body, _, err := r.request(ctx, fmt.Sprintf("/worlds/%d/stories/settings", realmID))
 	if err != nil {
@@ -250,7 +224,6 @@ func (r *Client) StorySettings(ctx context.Context, realmID int) (StorySettings,
 	return settings, nil
 }
 
-// UpdateStorySettings updates the Realms Stories settings for a realm.
 func (r *Client) UpdateStorySettings(ctx context.Context, realmID int, settings StorySettings) error {
 	body, err := json.Marshal(settings)
 	if err != nil {
@@ -267,8 +240,6 @@ func (r *Client) UpdateStorySettings(ctx context.Context, realmID int, settings 
 	return err
 }
 
-// OptInToStoryTimeline opts the authenticated player into a realm's Stories timeline
-// without changing any other Stories settings.
 func (r *Client) OptInToStoryTimeline(ctx context.Context, realmID int) error {
 	settings, err := r.StorySettings(ctx, realmID)
 	if err != nil {
@@ -281,7 +252,6 @@ func (r *Client) OptInToStoryTimeline(ctx context.Context, realmID int) error {
 	return r.UpdateStorySettings(ctx, realmID, settings)
 }
 
-// xboxToken returns the xbox token used for the api.
 func (r *Client) xboxToken(ctx context.Context) (*auth.XBLToken, error) {
 	if r.xblToken != nil && r.xblToken.Valid() {
 		return r.xblToken, nil
@@ -299,12 +269,10 @@ func (r *Client) xboxToken(ctx context.Context) (*auth.XBLToken, error) {
 	return r.xblToken, err
 }
 
-// request sends a GET request to the Realms API.
 func (r *Client) request(ctx context.Context, path string) (body []byte, status int, err error) {
 	return r.requestWithMethod(ctx, http.MethodGet, realmsBaseURL, path, nil)
 }
 
-// requestWithMethod retries a rejected Client-Version with an accepted version.
 func (r *Client) requestWithMethod(ctx context.Context, method, baseURL, path string, requestBody []byte) (body []byte, status int, err error) {
 	sent := r.clientVersion()
 	body, status, err = r.sendWithMethod(ctx, method, baseURL, path, requestBody, sent)
@@ -318,7 +286,6 @@ func (r *Client) requestWithMethod(ctx context.Context, method, baseURL, path st
 	return r.sendWithMethod(ctx, method, baseURL, path, requestBody, version)
 }
 
-// sendWithMethod sends one request without negotiating its Client-Version.
 func (r *Client) sendWithMethod(ctx context.Context, method, baseURL, path string, requestBody []byte, clientVersion string) (body []byte, status int, err error) {
 	if path == "" {
 		return nil, 0, fmt.Errorf("path is empty")
@@ -353,13 +320,24 @@ func (r *Client) sendWithMethod(ctx context.Context, method, baseURL, path strin
 	}
 
 	if resp.StatusCode >= 400 {
+		var detail struct {
+			ErrorMsg     string `json:"errorMsg"`
+			ErrorMessage string `json:"errorMessage"`
+			Message      string `json:"message"`
+		}
+		if json.Unmarshal(body, &detail) == nil {
+			for _, reason := range []string{detail.ErrorMsg, detail.ErrorMessage, detail.Message} {
+				if reason != "" {
+					return body, resp.StatusCode, fmt.Errorf("Realms HTTP error %d: %s", resp.StatusCode, reason)
+				}
+			}
+		}
 		return body, resp.StatusCode, fmt.Errorf("HTTP Error: %d", resp.StatusCode)
 	}
 
 	return body, resp.StatusCode, nil
 }
 
-// Realm gets a realm by its invite code.
 func (c *Client) Realm(ctx context.Context, code string) (Realm, error) {
 	body, _, err := c.request(ctx, fmt.Sprintf("/worlds/v1/link/%s", code))
 	if err != nil {
@@ -375,7 +353,6 @@ func (c *Client) Realm(ctx context.Context, code string) (Realm, error) {
 	return realm, nil
 }
 
-// Realms gets a list of all realms the token has access to.
 func (c *Client) Realms(ctx context.Context) ([]Realm, error) {
 	body, _, err := c.request(ctx, "/worlds")
 	if err != nil {

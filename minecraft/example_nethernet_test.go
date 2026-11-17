@@ -7,26 +7,16 @@ import (
 	"github.com/df-mc/go-nethernet/endpoint"
 )
 
-// ExampleNetherNet demonstrates a NetherNet<->NetherNet MITM proxy implementation.
 func ExampleNetherNet() {
-	// Start listening on HTTP/TLS for incoming connection requests.
+
 	server, err := endpoint.ServeTLS(":19132", "/path/to/cert-file", "/path/to/key-file")
 	if err != nil {
 		panic(err)
 	}
 	defer server.Close()
 
-	// Create a NetherNet network configuration using the HTTP server for
-	// WebRTC Signaling (exchanging connection details with remote peers).
 	n := NetherNet{Signaling: server}
 
-	// Start listening on the Minecraft game protocol layer using the NetherNet network.
-	// The address can be any string because the HTTP/TLS server is responsible for loading the
-	// TLS certificate and key, and the current interface does not expose a way to configure them.
-	//
-	// More complex signaling implementations, such as the JSON-RPC/WebSocket protocol
-	// used by peer-to-peer worlds, require authentication and connection cleanup. Those
-	// concerns are therefore better handled outside of ListenNetwork.
 	var cfg ListenConfig
 	l, err := cfg.ListenNetwork(n, server.NetworkID())
 	if err != nil {
@@ -43,9 +33,6 @@ func ExampleNetherNet() {
 	}
 }
 
-// handleConn handles an incoming connection by connecting to the upstream server over NetherNet.
-// The upstream server can be hosted using a Bedrock Dedicated Server with 'transport=nethernet'
-// set in server.properties.
 func handleConn(conn *Conn, listener *Listener) {
 	client := endpoint.NewClient()
 	serverConn, err := Dialer{

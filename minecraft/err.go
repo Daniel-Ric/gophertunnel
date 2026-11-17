@@ -2,13 +2,15 @@ package minecraft
 
 import (
 	"errors"
+	"fmt"
 	"net"
+	"strings"
+
+	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 )
 
 var errBufferTooSmall = errors.New("a message sent was larger than the buffer used to receive the message into")
 
-// wrap wraps the error passed into a net.OpError with the op as operation and returns it, or nil if the error
-// passed is nil.
 func (conn *Conn) wrap(err error, op string) error {
 	if err == nil {
 		return nil
@@ -22,12 +24,22 @@ func (conn *Conn) wrap(err error, op string) error {
 	}
 }
 
-// DisconnectError is an error returned by operations from Conn when the connection is closed by the other
-// end through a packet.Disconnect. It is wrapped in a net.OpError and may be obtained using
-// errors.Unwrap(net.OpError).
 type DisconnectError string
 
-// Error returns the message held in the packet.Disconnect.
 func (d DisconnectError) Error() string {
 	return string(d)
+}
+
+func disconnectPacketError(pk *packet.Disconnect) DisconnectError {
+	message := strings.TrimSpace(pk.Message)
+	if message == "" {
+		message = strings.TrimSpace(pk.FilteredMessage)
+	}
+	if message == "" {
+		message = "The server closed the connection without providing a reason"
+		if pk.Reason == packet.DisconnectReasonKicked {
+			message = "The server removed you from the world. No reason was provided"
+		}
+	}
+	return DisconnectError(fmt.Sprintf("%s (disconnect code %d)", message, pk.Reason))
 }

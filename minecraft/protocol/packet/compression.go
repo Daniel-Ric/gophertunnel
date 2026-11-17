@@ -13,13 +13,11 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/internal"
 )
 
-// Compression represents a compression algorithm that can compress and decompress data.
 type Compression interface {
-	// EncodeCompression encodes the compression algorithm into a uint16 ID.
 	EncodeCompression() uint16
-	// Compress compresses the given data and returns the compressed data.
+
 	Compress(decompressed []byte) ([]byte, error)
-	// Decompress decompresses the given data and returns the decompressed data.
+
 	Decompress(compressed []byte, limit int) ([]byte, error)
 }
 
@@ -28,38 +26,28 @@ type appendCompression interface {
 	MaxCompressedLen(decompressedLen int) int
 }
 
-// appendDecompression is implemented by Compression algorithms that can decompress into an existing
-// destination buffer instead of allocating a new one on every call.
 type appendDecompression interface {
-	// DecompressAppend appends the decompressed form of compressed to dst and returns the result. It
-	// returns an error if the decompressed size exceeds limit.
 	DecompressAppend(dst, compressed []byte, limit int) ([]byte, error)
 }
 
 var (
-	// NopCompression is an empty implementation that does not compress data.
 	NopCompression nopCompression
-	// FlateCompression is the implementation of the Flate compression
-	// algorithm. This is used by default.
+
 	FlateCompression flateCompression
-	// SnappyCompression is the implementation of the Snappy compression
-	// algorithm. Snappy currently crashes devices without `avx2`.
+
 	SnappyCompression snappyCompression
 
 	DefaultCompression Compression = FlateCompression
 )
 
 type (
-	// nopCompression is an empty implementation that does not compress data.
 	nopCompression struct{}
-	// flateCompression is the implementation of the Flate compression algorithm.
+
 	flateCompression struct{}
-	// snappyCompression is the implementation of the Snappy compression algorithm.
+
 	snappyCompression struct{}
 )
 
-// flateDecompressPool is a sync.Pool for io.ReadCloser flate readers. These are
-// pooled for connections.
 var (
 	flateDecompressPool = sync.Pool{
 		New: func() any { return flate.NewReader(bytes.NewReader(nil)) },
@@ -72,17 +60,14 @@ var (
 	}
 )
 
-// EncodeCompression ...
 func (nopCompression) EncodeCompression() uint16 {
 	return CompressionAlgorithmNone
 }
 
-// Compress ...
 func (nopCompression) Compress(decompressed []byte) ([]byte, error) {
 	return decompressed, nil
 }
 
-// Decompress ...
 func (nopCompression) Decompress(compressed []byte, limit int) ([]byte, error) {
 	if len(compressed) > limit {
 		return nil, fmt.Errorf("nop decompression: size %d exceeds limit %d", len(compressed), limit)
@@ -90,18 +75,16 @@ func (nopCompression) Decompress(compressed []byte, limit int) ([]byte, error) {
 	return compressed, nil
 }
 
-// EncodeCompression ...
 func (flateCompression) EncodeCompression() uint16 {
 	return CompressionAlgorithmFlate
 }
 
-// Compress ...
 func (flateCompression) Compress(decompressed []byte) ([]byte, error) {
 	compressed := internal.BufferPool.Get().(*bytes.Buffer)
 	w := flateCompressPool.Get().(*flate.Writer)
 
 	defer func() {
-		// Reset the buffer, so we can return it to the buffer pool safely.
+
 		compressed.Reset()
 		internal.BufferPool.Put(compressed)
 		flateCompressPool.Put(w)
@@ -117,7 +100,6 @@ func (flateCompression) Compress(decompressed []byte) ([]byte, error) {
 	return append([]byte(nil), compressed.Bytes()...), nil
 }
 
-// Decompress ...
 func (c flateCompression) Decompress(compressed []byte, limit int) ([]byte, error) {
 	pooled := getDecompressBuffer()
 	defer putDecompressBuffer(pooled)
@@ -130,8 +112,6 @@ func (c flateCompression) Decompress(compressed []byte, limit int) ([]byte, erro
 	return append([]byte(nil), data...), nil
 }
 
-// DecompressAppend decompresses flate data into dst. Flate has no length prefix, so dst is grown to double
-// the compressed size up front and appendReader grows it further if needed.
 func (flateCompression) DecompressAppend(dst, compressed []byte, limit int) ([]byte, error) {
 	limit = max(limit, 0)
 	hint := len(compressed)
@@ -162,22 +142,17 @@ func (flateCompression) DecompressAppend(dst, compressed []byte, limit int) ([]b
 	return decompressed, nil
 }
 
-// EncodeCompression ...
 func (snappyCompression) EncodeCompression() uint16 {
 	return CompressionAlgorithmSnappy
 }
 
-// Compress ...
 func (snappyCompression) Compress(decompressed []byte) ([]byte, error) {
-	// Use the fast Snappy-compatible S2 encoder. The snappy.Encode wrapper uses
-	// EncodeSnappyBetter, which trades more CPU and retained scratch memory for a
-	// smaller output size.
+
 	return s2.EncodeSnappy(nil, decompressed), nil
 }
 
 func (snappyCompression) CompressAppend(dst, decompressed []byte) ([]byte, error) {
-	// Append into the caller-provided output buffer so Encoder can keep the
-	// batch header and compression ID in the same allocation as the payload.
+
 	n := s2.MaxEncodedLen(len(decompressed))
 	if n < 0 {
 		panic(s2.ErrTooLarge)
@@ -192,13 +167,10 @@ func (snappyCompression) MaxCompressedLen(decompressedLen int) int {
 	return s2.MaxEncodedLen(decompressedLen)
 }
 
-// Decompress ...
 func (c snappyCompression) Decompress(compressed []byte, limit int) ([]byte, error) {
 	return c.DecompressAppend(nil, compressed, limit)
 }
 
-// DecompressAppend decompresses snappy data into dst. Snappy writes a decoded data length prefix, so the
-// exact size can be checked against limit and reserved in dst before decompressing.
 func (snappyCompression) DecompressAppend(dst, compressed []byte, limit int) ([]byte, error) {
 	decodedLen, err := s2.DecodedLen(compressed)
 	if err != nil {
@@ -216,12 +188,9 @@ func (snappyCompression) DecompressAppend(dst, compressed []byte, limit int) ([]
 	return append(dst[:offset], decompressed...), nil
 }
 
-// appendReader appends everything read from r to dst and returns the result. It returns an error if more
-// than limit bytes are read.
 func appendReader(dst []byte, r io.Reader, limit int) ([]byte, error) {
 	const chunkSize = 32 * 1024
 
-	// Reading limit+1 bytes detects overflow; cap the limit so the +1 cannot itself overflow.
 	limit = max(min(limit, math.MaxInt-1), 0)
 	start := len(dst)
 	for {
@@ -250,7 +219,6 @@ func appendReader(dst []byte, r io.Reader, limit int) ([]byte, error) {
 	}
 }
 
-// init registers all valid compressions with the protocol.
 func init() {
 	RegisterCompression(flateCompression{})
 	RegisterCompression(snappyCompression{})
@@ -258,13 +226,10 @@ func init() {
 
 var compressions = map[uint16]Compression{}
 
-// RegisterCompression registers a compression so that it can be used by the protocol.
 func RegisterCompression(compression Compression) {
 	compressions[compression.EncodeCompression()] = compression
 }
 
-// CompressionByID attempts to return a compression by the ID it was registered with. If found, the compression found
-// is returned and the bool is true.
 func CompressionByID(id uint16) (Compression, bool) {
 	c, ok := compressions[id]
 	if !ok {

@@ -21,10 +21,8 @@ const (
 	tagInt64Array
 )
 
-// tagType represents the type of NBT tag.
 type tagType byte
 
-// String converts a tagType to its string representation. This looks like `TAG_` + `<tag type>`, such as `TAG_Byte`.
 func (t tagType) String() string {
 	switch t {
 	case tagEnd:
@@ -58,7 +56,6 @@ func (t tagType) String() string {
 	}
 }
 
-// IsValid checks if the tagType is valid/known.
 func (t tagType) IsValid() bool {
 	switch t {
 	case tagEnd, tagByte, tagInt16, tagInt32, tagInt64, tagFloat32, tagFloat64, tagByteArray, tagString,
@@ -69,8 +66,6 @@ func (t tagType) IsValid() bool {
 	}
 }
 
-// tagFromType matches a reflect.Type with a tag type that can hold its value. If none is found, math.MaxUint8
-// is returned.
 func tagFromType(p reflect.Type) tagType {
 	if p == nil {
 		return tagEnd

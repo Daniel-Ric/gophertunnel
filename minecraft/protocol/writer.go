@@ -16,10 +16,6 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/nbt"
 )
 
-// Writer implements writing methods for data types from Minecraft packets. Each Packet implementation has one
-// passed to it when writing.
-// Writer implements methods where values are passed using a pointer, so that Reader and Writer have a
-// synonymous interface and both implement the IO interface.
 type Writer struct {
 	w interface {
 		io.Writer
@@ -29,7 +25,6 @@ type Writer struct {
 	buf      [8]byte
 }
 
-// NewWriter creates a new initialised Writer with an underlying io.ByteWriter to write to.
 func NewWriter(w interface {
 	io.Writer
 	io.ByteWriter
@@ -39,7 +34,6 @@ func NewWriter(w interface {
 	return writer
 }
 
-// Reset reuses w with a new underlying destination and shield ID.
 func (w *Writer) Reset(dst interface {
 	io.Writer
 	io.ByteWriter
@@ -48,41 +42,34 @@ func (w *Writer) Reset(dst interface {
 	w.shieldID = shieldID
 }
 
-// Uint8 writes a uint8 to the underlying buffer.
 func (w *Writer) Uint8(x *uint8) {
 	_ = w.w.WriteByte(*x)
 }
 
-// Int8 writes an int8 to the underlying buffer.
 func (w *Writer) Int8(x *int8) {
 	_ = w.w.WriteByte(byte(*x) & 0xff)
 }
 
-// Bool writes a bool as either 0 or 1 to the underlying buffer.
 func (w *Writer) Bool(x *bool) {
 	_ = w.w.WriteByte(*(*byte)(unsafe.Pointer(x)))
 }
 
-// StringUTF ...
 func (w *Writer) StringUTF(x *string) {
 	l := int16(len(*x))
 	w.Int16(&l)
 	w.writeString(*x)
 }
 
-// String writes a string, prefixed with a varuint32, to the underlying buffer.
 func (w *Writer) String(x *string) {
 	l := uint32(len(*x))
 	w.Varuint32(&l)
 	w.writeString(*x)
 }
 
-// stringWriter is implemented by writers that support writing strings directly.
 type stringWriter interface {
 	WriteString(string) (int, error)
 }
 
-// writeString uses WriteString when available to avoid converting s to []byte.
 func (w *Writer) writeString(s string) {
 	if sw, ok := w.w.(stringWriter); ok {
 		_, _ = sw.WriteString(s)
@@ -91,44 +78,37 @@ func (w *Writer) writeString(s string) {
 	_, _ = w.w.Write([]byte(s))
 }
 
-// ByteSlice writes a []byte, prefixed with a varuint32, to the underlying buffer.
 func (w *Writer) ByteSlice(x *[]byte) {
 	l := uint32(len(*x))
 	w.Varuint32(&l)
 	_, _ = w.w.Write(*x)
 }
 
-// Bytes appends a []byte to the underlying buffer.
 func (w *Writer) Bytes(x *[]byte) {
 	_, _ = w.w.Write(*x)
 }
 
-// ByteFloat writes a rotational float32 as a single byte to the underlying buffer.
 func (w *Writer) ByteFloat(x *float32) {
 	_ = w.w.WriteByte(byte(*x / (360.0 / 256.0)))
 }
 
-// Vec3 writes an mgl32.Vec3 as 3 float32s to the underlying buffer.
 func (w *Writer) Vec3(x *mgl32.Vec3) {
 	w.Float32(&x[0])
 	w.Float32(&x[1])
 	w.Float32(&x[2])
 }
 
-// Vec2 writes an mgl32.Vec2 as 2 float32s to the underlying buffer.
 func (w *Writer) Vec2(x *mgl32.Vec2) {
 	w.Float32(&x[0])
 	w.Float32(&x[1])
 }
 
-// BlockPos writes a BlockPos as 3 varint32s to the underlying buffer.
 func (w *Writer) BlockPos(x *BlockPos) {
 	w.Varint32(&x[0])
 	w.Varint32(&x[1])
 	w.Varint32(&x[2])
 }
 
-// ChunkPos writes a ChunkPos as 2 varint32s to the underlying buffer.
 func (w *Writer) ChunkPos(x *ChunkPos) {
 	w.Varint32(&x[0])
 	w.Varint32(&x[1])
@@ -140,13 +120,11 @@ func (w *Writer) SubChunkPos(x *SubChunkPos) {
 	w.Int32(&x[2])
 }
 
-// SoundPos writes an mgl32.Vec3 that serves as a position for a sound.
 func (w *Writer) SoundPos(x *mgl32.Vec3) {
 	b := BlockPos{int32((*x)[0] * 8), int32((*x)[1] * 8), int32((*x)[2] * 8)}
 	w.BlockPos(&b)
 }
 
-// RGB writes a color.RGBA x as 3 float32s to the underlying buffer.
 func (w *Writer) RGB(x *color.RGBA) {
 	red := float32(x.R) / 255
 	green := float32(x.G) / 255
@@ -156,19 +134,16 @@ func (w *Writer) RGB(x *color.RGBA) {
 	w.Float32(&blue)
 }
 
-// RGBA writes a color.RGBA x as a uint32 to the underlying buffer.
 func (w *Writer) RGBA(x *color.RGBA) {
 	val := uint32(x.R) | uint32(x.G)<<8 | uint32(x.B)<<16 | uint32(x.A)<<24
 	w.Uint32(&val)
 }
 
-// BEARGB writes a color.RGBA x as a big endian int32 to the underlying buffer.
 func (w *Writer) BEARGB(x *color.RGBA) {
 	val := int32(x.A) | int32(x.R)<<8 | int32(x.G)<<16 | int32(x.B)<<24
 	w.BEInt32(&val)
 }
 
-// UUID writes a UUID to the underlying buffer.
 func (w *Writer) UUID(x *uuid.UUID) {
 	b := append((*x)[8:], (*x)[:8]...)
 	for i, j := 0, 15; i < j; i, j = i+1, j-1 {
@@ -177,7 +152,6 @@ func (w *Writer) UUID(x *uuid.UUID) {
 	_, _ = w.w.Write(b)
 }
 
-// PlayerInventoryAction writes a PlayerInventoryAction.
 func (w *Writer) PlayerInventoryAction(x *UseItemTransactionData) {
 	w.Varint32(&x.LegacyRequestID)
 	OptionalFunc(w, &x.LegacySetItemSlots, func(slots *[]LegacySetItemSlot) {
@@ -198,7 +172,6 @@ func (w *Writer) PlayerInventoryAction(x *UseItemTransactionData) {
 	w.Uint8(&x.ClientCooldownState)
 }
 
-// GameRule writes a GameRule x to the Writer.
 func (w *Writer) GameRule(x *GameRule) {
 	w.String(&x.Name)
 	w.Bool(&x.CanBeModifiedByPlayer)
@@ -224,15 +197,10 @@ func (w *Writer) GameRule(x *GameRule) {
 	}
 }
 
-// EntityMetadata writes an entity metadata map x to the underlying buffer.
 func (w *Writer) EntityMetadata(x *EntityMetadata) {
 	l := uint32(len(*x))
 	w.Varuint32(&l)
 
-	// Entity metadata needs to be sorted for some functionality to work. NPCs, for example, need to have their fields
-	// set in increasing order, or the text or buttons won't be shown to the client. See #88.
-	// Sorting this is probably not very fast, but it'll have to do for now: We can change entity metadata to a slice
-	// later on.
 	keys := make([]int, 0, l)
 	for k := range *x {
 		keys = append(keys, int(k))
@@ -281,7 +249,6 @@ func (w *Writer) EntityMetadata(x *EntityMetadata) {
 	}
 }
 
-// ItemDescriptorCount writes an ItemDescriptorCount i to the underlying buffer.
 func (w *Writer) ItemDescriptorCount(i *ItemDescriptorCount) {
 	id, name, ok := itemDescriptorType(i.Descriptor)
 	if !ok {
@@ -311,7 +278,6 @@ func (w *Writer) ItemDescriptorCount(i *ItemDescriptorCount) {
 	w.Varint32(&i.Count)
 }
 
-// ItemInstance writes an ItemInstance i to the underlying buffer.
 func (w *Writer) ItemInstance(i *ItemInstance) {
 	x := &i.Stack
 	id := int16(x.NetworkID)
@@ -331,7 +297,6 @@ func (w *Writer) ItemInstance(i *ItemInstance) {
 	w.itemUserData(itemStackUserData(x), x.NetworkID != 0, x.NetworkID == w.shieldID)
 }
 
-// Item writes an ItemStack x to the underlying buffer.
 func (w *Writer) Item(x *ItemStack) {
 	w.Varint32(&x.NetworkID)
 
@@ -341,7 +306,6 @@ func (w *Writer) Item(x *ItemStack) {
 	w.itemUserData(itemStackUserData(x), x.NetworkID != 0, x.NetworkID == w.shieldID)
 }
 
-// StackRequestItem writes the descriptor-based item format used by deprecated craft-result actions.
 func (w *Writer) StackRequestItem(x *StackRequestItem) {
 	hasItem := x.Identifier != ""
 	variant := uint32(0)
@@ -393,7 +357,6 @@ func (w *Writer) itemUserData(x itemUserData, present, shield bool) {
 	w.ByteSlice(&extraData)
 }
 
-// StackRequestAction writes a StackRequestAction to the writer.
 func (w *Writer) StackRequestAction(x *StackRequestAction) {
 	var id byte
 	if !lookupStackRequestActionType(*x, &id) {
@@ -405,14 +368,12 @@ func (w *Writer) StackRequestAction(x *StackRequestAction) {
 	(*x).Marshal(w)
 }
 
-// MaterialReducer writes a material reducer to the writer.
 func (w *Writer) MaterialReducer(m *MaterialReducer) {
 	mix := (m.InputItem.NetworkID << 16) | int32(m.InputItem.MetadataValue&0xffff)
 	w.Varint32(&mix)
 	Slice(w, &m.Outputs)
 }
 
-// EventType writes an Event to the writer.
 func (w *Writer) EventType(x *Event) {
 	var t int32
 	if !lookupEventType(*x, &t) {
@@ -421,7 +382,6 @@ func (w *Writer) EventType(x *Event) {
 	w.Varint32(&t)
 }
 
-// EventOrdinal writes an Event ordinal to the writer.
 func (w *Writer) EventOrdinal(x *Event) {
 	var ordinal uint32
 	if !lookupEventOrdinal(*x, &ordinal) {
@@ -431,7 +391,6 @@ func (w *Writer) EventOrdinal(x *Event) {
 	w.Varuint32(&ordinal)
 }
 
-// TransactionDataType writes an InventoryTransactionData type to the writer.
 func (w *Writer) TransactionDataType(x *InventoryTransactionData) {
 	var id uint32
 	if !lookupTransactionDataType(*x, &id) {
@@ -440,7 +399,6 @@ func (w *Writer) TransactionDataType(x *InventoryTransactionData) {
 	w.Varuint32(&id)
 }
 
-// AbilityValue writes an ability value to the writer.
 func (w *Writer) AbilityValue(x *any) {
 	switch val := (*x).(type) {
 	case bool:
@@ -460,7 +418,6 @@ func (w *Writer) AbilityValue(x *any) {
 
 var varintMaxByteValue = big.NewInt(0x80)
 
-// Bitset writes a Bitset x to the underlying buffer.
 func (w *Writer) Bitset(x *Bitset, size int) {
 	if x.size != size {
 		w.panicf("bitset size mismatch: expected %v, got %v", size, x.size)
@@ -480,7 +437,6 @@ func (w *Writer) Bitset(x *Bitset, size int) {
 	_ = w.w.WriteByte(byte(u.Bits()[0]))
 }
 
-// PackSetting writes a PackSetting x to the underlying buffer.
 func (w *Writer) PackSetting(x *PackSetting) {
 	w.String(&x.Name)
 	var id uint32
@@ -506,7 +462,6 @@ func (w *Writer) PackSetting(x *PackSetting) {
 	}
 }
 
-// ShapeData writes a ShapeData to the writer.
 func (w *Writer) ShapeData(x *ShapeData) {
 	var shapeDataType uint32
 	if !lookupShapeDataType(*x, &shapeDataType) {
@@ -516,7 +471,6 @@ func (w *Writer) ShapeData(x *ShapeData) {
 	(*x).Marshal(w)
 }
 
-// Varint64 writes an int64 as 1-10 bytes to the underlying buffer.
 func (w *Writer) Varint64(x *int64) {
 	u := *x
 	ux := uint64(u) << 1
@@ -530,42 +484,34 @@ func (w *Writer) Varint64(x *int64) {
 	_ = w.w.WriteByte(byte(ux))
 }
 
-// ActorRuntimeID writes an entity runtime ID encoded as an unsigned varint.
 func (w *Writer) ActorRuntimeID(x *uint64) {
 	w.Varuint64(x)
 }
 
-// ActorRuntimeIDVarint64 writes an entity runtime ID encoded as a signed varint.
 func (w *Writer) ActorRuntimeIDVarint64(x *int64) {
 	w.Varint64(x)
 }
 
-// ActorRuntimeIDVaruint32 writes an entity runtime ID encoded as an unsigned 32-bit varint.
 func (w *Writer) ActorRuntimeIDVaruint32(x *uint32) {
 	w.Varuint32(x)
 }
 
-// ActorUniqueID writes an entity unique ID encoded as a signed varint.
 func (w *Writer) ActorUniqueID(x *int64) {
 	w.Varint64(x)
 }
 
-// ActorUniqueIDInt64 writes an entity unique ID encoded as a fixed-width signed integer.
 func (w *Writer) ActorUniqueIDInt64(x *int64) {
 	w.Int64(x)
 }
 
-// ActorUniqueIDUint64 writes an entity unique ID encoded as a fixed-width unsigned integer.
 func (w *Writer) ActorUniqueIDUint64(x *uint64) {
 	w.Uint64(x)
 }
 
-// ActorUniqueIDVaruint64 writes an entity unique ID encoded as an unsigned varint.
 func (w *Writer) ActorUniqueIDVaruint64(x *uint64) {
 	w.Varuint64(x)
 }
 
-// Varuint64 writes a uint64 as 1-10 bytes to the underlying buffer.
 func (w *Writer) Varuint64(x *uint64) {
 	u := *x
 	for u >= 0x80 {
@@ -575,7 +521,6 @@ func (w *Writer) Varuint64(x *uint64) {
 	_ = w.w.WriteByte(byte(u))
 }
 
-// Varint32 writes an int32 as 1-5 bytes to the underlying buffer.
 func (w *Writer) Varint32(x *int32) {
 	u := *x
 	ux := uint32(u) << 1
@@ -589,7 +534,6 @@ func (w *Writer) Varint32(x *int32) {
 	_ = w.w.WriteByte(byte(ux))
 }
 
-// Varuint32 writes a uint32 as 1-5 bytes to the underlying buffer.
 func (w *Writer) Varuint32(x *uint32) {
 	u := *x
 	for u >= 0x80 {
@@ -599,36 +543,30 @@ func (w *Writer) Varuint32(x *uint32) {
 	_ = w.w.WriteByte(byte(u))
 }
 
-// NBT writes a map as NBT to the underlying buffer using the encoding passed.
 func (w *Writer) NBT(x *map[string]any, encoding nbt.Encoding) {
 	if err := nbt.NewEncoderWithEncoding(w.w, encoding).Encode(*x); err != nil {
 		panic(err)
 	}
 }
 
-// NBTList writes a slice as NBT to the underlying buffer using the encoding passed.
 func (w *Writer) NBTList(x *[]any, encoding nbt.Encoding) {
 	if err := nbt.NewEncoderWithEncoding(w.w, encoding).Encode(*x); err != nil {
 		panic(err)
 	}
 }
 
-// ShieldID returns the shield ID provided to the writer.
 func (w *Writer) ShieldID() int32 {
 	return w.shieldID
 }
 
-// UnknownEnumOption panics with an unknown enum option error.
 func (w *Writer) UnknownEnumOption(value any, enum string) {
 	w.panicf("unknown value '%#v' for enum type '%v'", value, enum)
 }
 
-// InvalidValue panics with an invalid value error.
 func (w *Writer) InvalidValue(value any, forField, reason string) {
 	w.panicf("invalid value '%v' for %v: %v", value, forField, reason)
 }
 
-// panicf panics with the format and values passed.
 func (w *Writer) panicf(format string, a ...any) {
 	panic(fmt.Errorf(format, a...))
 }

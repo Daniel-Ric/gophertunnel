@@ -15,25 +15,18 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 )
 
-// minecraftAuthURL is the URL that an authentication request is made to to get an encoded JWT claim chain.
 var minecraftAuthURL = &url.URL{
 	Scheme: "https",
 	Host:   "multiplayer.minecraft.net",
 	Path:   "/authentication",
-} // https://multiplayer.minecraft.net/authentication
+}
 
-// RequestMinecraftChain requests a fully processed Minecraft JWT chain using
-// the XBL client and the ECDSA private key passed. The key will later be used to
-// initialise encryption, and must be saved for when packets need to be
-// decrypted/encrypted.
 func RequestMinecraftChain(ctx context.Context, client *xsapi.Client, key *ecdsa.PrivateKey) (string, error) {
 	data, err := x509.MarshalPKIXPublicKey(&key.PublicKey)
 	if err != nil {
 		return "", fmt.Errorf("marshal public key: %w", err)
 	}
 
-	// The body of the requests holds a JSON object with one key in it, the 'identityPublicKey', which holds
-	// the public key data of the private key passed.
 	body := `{"identityPublicKey":"` + base64.StdEncoding.EncodeToString(data) + `"}`
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, minecraftAuthURL.String(), strings.NewReader(body))
 	if err != nil {
@@ -44,7 +37,6 @@ func RequestMinecraftChain(ctx context.Context, client *xsapi.Client, key *ecdsa
 	request.Header.Set("Client-Version", protocol.CurrentVersion)
 	request.Header.Set("Content-Type", "application/json")
 
-	// The vanilla client does not populate Signature header for auth chain requests.
 	resp, err := client.HTTPClient().Do(xsapi.WithoutAuthHeaders(request, "Signature"))
 	if err != nil {
 		return "", fmt.Errorf("POST %v: %w", minecraftAuthURL, err)

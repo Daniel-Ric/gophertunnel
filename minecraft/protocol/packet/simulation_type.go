@@ -9,13 +9,10 @@ const (
 	SimulationTypeInvalid
 )
 
-// SimulationType is an in-progress packet. We currently do not know the use case.
 type SimulationType struct {
-	// SimulationType is the simulation type selected.
 	SimulationType byte
 }
 
-// ID ...
 func (*SimulationType) ID() uint32 {
 	return IDSimulationType
 }

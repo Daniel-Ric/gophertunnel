@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
+	"time"
 
 	"github.com/df-mc/go-playfab/v2"
 	"github.com/df-mc/go-playfab/v2/catalog"
@@ -18,19 +20,12 @@ import (
 	"golang.org/x/text/language"
 )
 
-// Environment represents an environment for gatherings service.
 type Environment struct {
-	// ServiceURI is the base endpoint URL for gatherings service.
 	ServiceURI *url.URL `json:"serviceUri"`
 
-	// HTTPClient is the HTTP client used by Environment and Client
-	// to make requests to the endpoints provided by gatherings service.
-	// If nil, [http.DefaultClient] will be used instead.
 	HTTPClient *http.Client `json:"-"`
 }
 
-// DefaultEnvironment is the default [Environment] used when callers do not
-// provide one explicitly. It may become outdated if Mojang changes the service endpoint.
 var DefaultEnvironment = &Environment{
 	ServiceURI: &url.URL{
 		Scheme: "https",
@@ -38,12 +33,10 @@ var DefaultEnvironment = &Environment{
 	},
 }
 
-// NewClient returns a new [Client] using [DefaultEnvironment].
 func NewClient(src service.TokenSource) *Client {
 	return DefaultEnvironment.New(src)
 }
 
-// New returns a new Client using the provided [service.TokenSource] for authorization.
 func (e *Environment) New(src service.TokenSource) *Client {
 	return &Client{
 		src:    src,
@@ -52,7 +45,6 @@ func (e *Environment) New(src service.TokenSource) *Client {
 	}
 }
 
-// httpClient returns the HTTP client used for requests made by [Environment].
 func (e *Environment) httpClient() *http.Client {
 	if e.HTTPClient != nil {
 		return e.HTTPClient
@@ -60,18 +52,12 @@ func (e *Environment) httpClient() *http.Client {
 	return http.DefaultClient
 }
 
-// Client provides access to the Minecraft Gatherings service.
-// It can search for online experiences and featured servers offered by
-// Mojang-partnered creators.
 type Client struct {
 	src    service.TokenSource
 	client *http.Client
 	env    *Environment
 }
 
-// ParseExperience parses the display properties of item into an [Experience].
-// It accepts [catalog.Item] values returned by other APIs, such as
-// [catalog.Client.SearchItems]. The returned [Experience] is ready to use with Client.
 func (c *Client) ParseExperience(item catalog.Item) (*Experience, error) {
 	var exp Experience
 	if err := json.Unmarshal(item.DisplayProperties, &exp); err != nil {
@@ -81,10 +67,6 @@ func (c *Client) ParseExperience(item catalog.Item) (*Experience, error) {
 	return &exp, nil
 }
 
-// ParseFeaturedServer parses the display properties of item into a
-// [FeaturedServer]. It accepts [catalog.Item] values returned by other APIs,
-// such as [catalog.Client.SearchItems]. The returned [FeaturedServer] is ready
-// to use.
 func (c *Client) ParseFeaturedServer(item catalog.Item) (*FeaturedServer, error) {
 	var server FeaturedServer
 	if err := json.Unmarshal(item.DisplayProperties, &server); err != nil {
@@ -94,14 +76,6 @@ func (c *Client) ParseFeaturedServer(item catalog.Item) (*FeaturedServer, error)
 	return &server, nil
 }
 
-// SearchItems performs search for catalog items that describe experiences or
-// featured servers.
-//
-// This method is similar to [catalog.Client.SearchItems], but the gatherings
-// service may return items that are not visible to regular player entities.
-// The endpoint appears to return the same result regardless of the provided
-// filter, so this method is only useful for listing gatherings experiences
-// and featured servers.
 func (c *Client) SearchItems(ctx context.Context, filter catalog.SearchFilter, opts ...playfab.RequestOption) (*catalog.SearchResult, error) {
 	buf := &bytes.Buffer{}
 	defer buf.Reset()
@@ -130,7 +104,7 @@ func (c *Client) SearchItems(ctx context.Context, filter catalog.SearchFilter, o
 	defer resp.Body.Close()
 	switch resp.StatusCode {
 	case http.StatusOK:
-		// PlayFab API Result
+
 		var result struct {
 			Data *catalog.SearchResult `json:"data"`
 		}
@@ -146,11 +120,9 @@ func (c *Client) SearchItems(ctx context.Context, filter catalog.SearchFilter, o
 	}
 }
 
-// Experiences returns the currently listed online experiences.
 func (c *Client) Experiences(ctx context.Context) ([]*Experience, error) {
 	result, err := c.SearchItems(ctx, catalog.SearchFilter{
-		// The gatherings service appears to ignore this [catalog.SearchFilter]
-		// and return the same result for any filter.
+
 		Filter:  "(ContentType eq '3PP_V2.0') and (DisplayProperties/experienceId ne '')",
 		OrderBy: "startDate desc",
 		Select:  "images",
@@ -176,11 +148,9 @@ func (c *Client) Experiences(ctx context.Context) ([]*Experience, error) {
 	return experiences, nil
 }
 
-// FeaturedServers returns the currently listed featured servers.
 func (c *Client) FeaturedServers(ctx context.Context) ([]*FeaturedServer, error) {
 	result, err := c.SearchItems(ctx, catalog.SearchFilter{
-		// The gatherings service appears to ignore this [catalog.SearchFilter]
-		// and return the same result for any filter.
+
 		Filter:  "(ContentType eq '3PP_V2.0') and (DisplayProperties/experienceId eq '')",
 		OrderBy: "startDate desc",
 		Select:  "images",
@@ -205,8 +175,6 @@ func (c *Client) FeaturedServers(ctx context.Context) ([]*FeaturedServer, error)
 	return servers, nil
 }
 
-// JoinExperience attempts to join the experience using the ID.
-// The resulting [Address] may point to the server nearest to the caller.
 func (c *Client) JoinExperience(ctx context.Context, id uuid.UUID) (*Address, error) {
 	if id == uuid.Nil {
 		return nil, errors.New("service/gatherings: experience ID is nil")
@@ -246,10 +214,6 @@ func (c *Client) JoinExperience(ctx context.Context, id uuid.UUID) (*Address, er
 	}
 }
 
-// do sets the same headers present on the vanilla client to the request
-// and sends it through the HTTP client configured on the Client.
-// The given request must be created using [http.NewRequestWithContext]
-// so the token request respects the request context.
 func (c *Client) do(req *http.Request) (*http.Response, error) {
 	token, err := c.src.ServiceToken(req.Context())
 	if err != nil {
@@ -262,13 +226,6 @@ func (c *Client) do(req *http.Request) (*http.Response, error) {
 	return c.client.Do(req)
 }
 
-// JoinFriend attempts to join the same world as a friend using the friend's ID,
-// experience ID, and world ID. When a user joins an experience, they publish a
-// presence to the Xbox Live Multiplayer Session Directory (MPSD) containing
-// identifiers tied to the experience and world they are currently playing in.
-// The user's friends can use the identifiers published in the MPSD session's
-// custom properties to join the same world. The world ID or friend ID may be
-// [uuid.Nil] or an empty string if they're not available.
 func (c *Client) JoinFriend(ctx context.Context, experienceID, worldID uuid.UUID, friendID string) (*Address, error) {
 	if experienceID == uuid.Nil {
 		return nil, fmt.Errorf("service/gatherings: experience ID must not be nil")
@@ -314,10 +271,6 @@ func (c *Client) JoinFriend(ctx context.Context, experienceID, worldID uuid.UUID
 	}
 }
 
-// PlayerCounts returns a map whose keys are experience IDs and whose values are the
-// number of players currently connected to each experience. It is particularly useful
-// when an experience is operated using multiple Bedrock Dedicated Servers and the total
-// number of players cannot be determined by simply sending network pings.
 func (c *Client) PlayerCounts(ctx context.Context) (map[uuid.UUID]int, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.env.ServiceURI.JoinPath("/api/v2.0/dataquery/playercounts").String(), nil)
 	if err != nil {
@@ -330,6 +283,14 @@ func (c *Client) PlayerCounts(ctx context.Context) (map[uuid.UUID]int, error) {
 	}
 	defer resp.Body.Close()
 	switch resp.StatusCode {
+	case http.StatusTooManyRequests:
+		wait := time.Minute
+		if seconds, err := strconv.ParseInt(resp.Header.Get("Retry-After"), 10, 32); err == nil && seconds > 0 {
+			wait = time.Duration(seconds) * time.Second
+		} else if until, err := http.ParseTime(resp.Header.Get("Retry-After")); err == nil && time.Until(until) > 0 {
+			wait = time.Until(until)
+		}
+		return nil, &PlayerCountRateLimitError{RetryAfter: wait, Err: internal.Err(resp)}
 	case http.StatusOK:
 		var result internal.Result[[]playerCountRecord]
 		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -348,22 +309,23 @@ func (c *Client) PlayerCounts(ctx context.Context) (map[uuid.UUID]int, error) {
 	}
 }
 
-// playerCountRecord represents a record containing the total number of players currently
-// connected to an experience identified by ID.
+// PlayerCountRateLimitError preserves the service error and requested cooldown.
+type PlayerCountRateLimitError struct {
+	RetryAfter time.Duration
+	Err        error
+}
+
+func (e *PlayerCountRateLimitError) Error() string { return e.Err.Error() }
+func (e *PlayerCountRateLimitError) Unwrap() error { return e.Err }
+
 type playerCountRecord struct {
-	// ExperienceID identifies the experience this record belongs to.
 	ExperienceID uuid.UUID `json:"experienceId"`
-	// PlayerCount is the total amount of players currently connected to the experience.
+
 	PlayerCount int `json:"playerCount"`
 }
 
-// joinFriendRequest represents the JSON structure for the request body used in [Client.JoinFriend].
-// It includes identifiers of the experience/world to connect. The PlayFab ID of the friend is instead
-// included as the 'friendId' query parameter in the URL.
 type joinFriendRequest struct {
-	// ExperienceID identifies the experience to join.
 	ExperienceID uuid.UUID `json:"experienceId"`
-	// WorldID identifies the world within the experience to join.
-	// It may be absent if the server has no world ID associated with it.
+
 	WorldID uuid.UUID `json:"worldId,omitzero"`
 }

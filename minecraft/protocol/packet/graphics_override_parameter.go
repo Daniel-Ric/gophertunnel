@@ -5,25 +5,22 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 )
 
-// GraphicsOverrideParameter is sent by the server to override graphics parameters.
 type GraphicsOverrideParameter struct {
-	// Values is a list of parameter keyframe values.
 	Values []protocol.ParameterKeyframeValue
-	// FloatValue is an optional single float graphics parameter to be overridden.
+
 	FloatValue protocol.Optional[float32]
-	// Vec3Value is an optional single Vec3 graphics parameter to be overridden.
+
 	Vec3Value protocol.Optional[mgl32.Vec3]
-	// BiomeIdentifier is the identifier of the biome for which the parameters apply.
+
 	BiomeIdentifier string
-	// PlayerIdentifier is the optional identifier of the player for which the override parameter applies.
+
 	PlayerIdentifier protocol.Optional[string]
-	// ParameterType is the type of parameter being overridden.
+
 	ParameterType uint8
-	// Reset indicates whether to reset the parameters.
+
 	Reset bool
 }
 
-// ID ...
 func (*GraphicsOverrideParameter) ID() uint32 {
 	return IDGraphicsOverrideParameter
 }

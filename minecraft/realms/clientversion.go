@@ -20,8 +20,6 @@ const (
 	versionSearchCooldown      = 5 * time.Minute
 )
 
-// SetClientVersion sets the game version sent to Realms. An empty version uses
-// protocol.CurrentVersion. Invalid versions are ignored.
 func (c *Client) SetClientVersion(version string) {
 	version = strings.TrimSpace(version)
 	c.versionMu.Lock()
@@ -38,7 +36,6 @@ func (c *Client) SetClientVersion(version string) {
 	c.searchFailedAt = time.Time{}
 }
 
-// clientVersion returns the version to send as Client-Version.
 func (c *Client) clientVersion() string {
 	c.versionMu.Lock()
 	defer c.versionMu.Unlock()
@@ -51,11 +48,10 @@ func (c *Client) clientVersion() string {
 	return protocol.CurrentVersion
 }
 
-// negotiateClientVersion finds and caches an accepted version after a rejection.
 func (c *Client) negotiateClientVersion(ctx context.Context, failed string) (string, bool) {
 	c.negotiateMu.Lock()
 	defer c.negotiateMu.Unlock()
-	// Another caller may have negotiated a version while this request was in flight.
+
 	if current := c.clientVersion(); current != failed {
 		return current, true
 	}
@@ -76,7 +72,7 @@ func (c *Client) negotiateClientVersion(ctx context.Context, failed string) (str
 		}
 		accepted, err := c.versionCompatible(ctx, candidate)
 		if err != nil {
-			// Stop searching if the compatibility endpoint fails.
+
 			c.recordSearchFailure()
 			return failed, false
 		}
@@ -92,14 +88,12 @@ func (c *Client) negotiateClientVersion(ctx context.Context, failed string) (str
 	return failed, false
 }
 
-// recordSearchFailure holds off further searches until the cooldown passes.
 func (c *Client) recordSearchFailure() {
 	c.versionMu.Lock()
 	defer c.versionMu.Unlock()
 	c.searchFailedAt = time.Now()
 }
 
-// versionCompatible reports whether Realms still accepts a game version.
 func (c *Client) versionCompatible(ctx context.Context, version string) (bool, error) {
 	body, status, err := c.sendWithMethod(ctx, http.MethodGet, realmsBaseURL, compatiblePath, nil, version)
 	if err != nil {
@@ -111,8 +105,6 @@ func (c *Client) versionCompatible(ctx context.Context, version string) (bool, e
 	return strings.EqualFold(strings.TrimSpace(string(body)), compatibleResponse), nil
 }
 
-// versionCandidates lists versions to try, starting at version and walking its
-// patch component down towards zero.
 func versionCandidates(version string) []string {
 	major, minor, patch, ok := parseVersion(version)
 	if !ok {
@@ -125,8 +117,6 @@ func versionCandidates(version string) []string {
 	return candidates
 }
 
-// parseVersion splits the leading MAJOR.MINOR.PATCH of a version, ignoring any
-// build revision after it.
 func parseVersion(version string) (major, minor, patch int, ok bool) {
 	fields := strings.Split(strings.TrimSpace(version), ".")
 	if len(fields) < 3 {
@@ -143,8 +133,6 @@ func parseVersion(version string) (major, minor, patch int, ok bool) {
 	return parsed[0], parsed[1], parsed[2], true
 }
 
-// unknownClientVersion reports whether a response rejects the Client-Version
-// header rather than the request itself.
 func unknownClientVersion(status int, body []byte) bool {
 	if status != http.StatusBadRequest {
 		return false

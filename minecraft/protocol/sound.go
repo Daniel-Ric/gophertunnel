@@ -10,23 +10,20 @@ const (
 	SoundDataUpdateResume
 )
 
-// SoundDataUpdate is a single change to a sound that is currently playing.
 type SoundDataUpdate struct {
-	// Type is the type of the update. It is one of the SoundDataUpdate constants above.
 	Type uint8
-	// Volume is used if Type is SoundDataUpdateSetVolume.
+
 	Volume float32
-	// Pitch is used if Type is SoundDataUpdateSetPitch.
+
 	Pitch float32
-	// Duration is the fade duration in seconds. It is used if Type is SoundDataUpdateFade.
+
 	Duration float32
-	// TargetVolume is the fade target volume. It is used if Type is SoundDataUpdateFade.
+
 	TargetVolume float32
-	// Seconds is the position to seek to. It is used if Type is SoundDataUpdateSeekTo.
+
 	Seconds float32
 }
 
-// Marshal encodes/decodes a SoundDataUpdate.
 func (x *SoundDataUpdate) Marshal(io IO) {
 	index := uint32(x.Type)
 	io.Varuint32(&index)

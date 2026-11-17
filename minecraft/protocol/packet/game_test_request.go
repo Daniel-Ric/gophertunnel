@@ -10,25 +10,22 @@ const (
 	GameTestRequestRotation360
 )
 
-// GameTestRequest ...
 type GameTestRequest struct {
-	// Name represents the name of the test.
 	Name string
-	// Rotation represents the rotation of the test. It is one of the constants above.
+
 	Rotation uint8
-	// Repetitions represents the amount of times the test will be run.
+
 	Repetitions int32
-	// Position is the position at which the test will be performed.
+
 	Position protocol.BlockPos
-	// StopOnError indicates whether the test should immediately stop when an error is encountered.
+
 	StopOnError bool
-	// TestsPerRow ...
+
 	TestsPerRow int32
-	// MaxTestsPerBatch ...
+
 	MaxTestsPerBatch int32
 }
 
-// ID ...
 func (pk *GameTestRequest) ID() uint32 {
 	return IDGameTestRequest
 }

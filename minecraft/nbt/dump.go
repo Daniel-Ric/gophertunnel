@@ -7,15 +7,6 @@ import (
 	"strings"
 )
 
-// Dump returns a human readable decoded version of a serialised slice of NBT encoded using the encoding that
-// is passed.
-// Types are printed using the names present in the doc.go file and nested tags are indented using a single
-// tab.
-// Due to the nature of NBT, TAG_Compounds will not be printed in the same order. A different result is to be
-// expected every time Dump is called, due to the random ordering.
-//
-// If the serialised NBT data passed is not parsable using the encoding that was passed, an error is returned
-// and the resulting string will always be empty.
 func Dump(data []byte, encoding Encoding) (string, error) {
 	var m map[string]any
 	if err := UnmarshalEncoding(data, &m, encoding); err != nil {
@@ -25,23 +16,14 @@ func Dump(data []byte, encoding Encoding) (string, error) {
 	return s.encodeTagType(m) + "(" + s.encodeTagValue(m) + ")", nil
 }
 
-// dumpState is used to keep track of values used during a single dump operations. A new one is created upon
-// every call to Dump().
 type dumpState struct {
-	// currentIndent specifies the amount of tabs that should be present in front of tags in the dump upon
-	// writing. The value is increased every time a compound or list tag is opened, and reduced every time
-	// a compound or list tag is closed.
 	currentIndent int
 }
 
-// indent returns the indentation required for the current nesting level. It is increased every time a list
-// or compound tag is opened, and reduced when it is closed.
 func (s *dumpState) indent() string {
 	return strings.Repeat("	", s.currentIndent)
 }
 
-// encodeTagType encodes the type of the value passed to an NBT tag name. The way these are translated can be
-// found in the doc.go file.
 func (s *dumpState) encodeTagType(val any) string {
 	if val == nil {
 		return "nil"
@@ -87,11 +69,8 @@ func (s *dumpState) encodeTagType(val any) string {
 	panic("should not happen")
 }
 
-// encodeTagValue encodes a value passed to a format in which they are displayed in the dump string.
-// encodeTagValue operates recursively: If lists or compounds are nested, encodeTagValue will include all
-// nested tags.
 func (s *dumpState) encodeTagValue(val any) string {
-	//noinspection SpellCheckingInspection
+
 	const hexTable = "0123456789abcdef"
 
 	switch v := val.(type) {

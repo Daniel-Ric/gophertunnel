@@ -19,26 +19,21 @@ import (
 	"github.com/google/uuid"
 )
 
-// chain holds a chain with claims, each with their own headers, payloads and signatures. Each claim holds
-// a public key used to verify other claims.
 type chain []string
 
 type certificate struct {
 	Chain chain `json:"chain"`
 }
 
-// request is the outer encapsulation of the request. It holds a chain and a ClientData object.
 type request struct {
-	// Certificate holds the client certificate chain. The chain holds several claims that the server may verify in order to
-	// make sure that the client is logged into XBOX Live.
 	Certificate certificate `json:"Certificate"`
-	// AuthenticationType is the authentication type of the request.
+
 	AuthenticationType uint8 `json:"AuthenticationType"`
-	// Token is an empty string, it's unclear what's used for.
+
 	Token string `json:"Token"`
-	// RawToken holds the raw token that follows the JWT chain, holding the ClientData.
+
 	RawToken string `json:"-"`
-	// Legacy specifies whether to use the legacy format of the request or not.
+
 	Legacy bool `json:"-"`
 }
 
@@ -63,7 +58,7 @@ func (r *request) MarshalJSON() ([]byte, error) {
 }
 
 func init() {
-	//noinspection SpellCheckingInspection
+
 	const mojangPublicKey = `MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAECRXueJeTDqNRRgJi/vlRufByu/2G0i2Ebt6YMar5QX/R0DIIyrJMcUpruK4QveTfJSTp3Shlq4Gk34cD/4GUWwkv0DVuzeuB+tXija7HBxii03NHDbPAD0AKnLr2wdAp`
 
 	data, _ := base64.StdEncoding.DecodeString(mojangPublicKey)
@@ -71,23 +66,13 @@ func init() {
 	mojangKey = publicKey.(*ecdsa.PublicKey)
 }
 
-// mojangKey holds the parsed Mojang ecdsa.PublicKey.
 var mojangKey = new(ecdsa.PublicKey)
 
-// AuthResult is returned by a call to Parse. It holds the ecdsa.PublicKey of the client and a bool that
-// indicates if the player was logged in with XBOX Live.
 type AuthResult struct {
 	PublicKey             *ecdsa.PublicKey
 	XBOXLiveAuthenticated bool
 }
 
-// Parse parses and verifies the login request passed. The AuthResult returned holds the ecdsa.PublicKey that
-// was parsed (which is used for encryption) and a bool specifying if the request was authenticated by XBOX
-// Live.
-// Parse returns IdentityData and ClientData, of which IdentityData cannot under any circumstance be edited by
-// the client. Rather, it is obtained from an authentication endpoint. The ClientData can, however, be edited
-// freely by the client.
-// The verifier will be used for parsing the OpenID token included in the first chain of the login request.
 func Parse(request []byte, verifier *oidc.IDTokenVerifier) (IdentityData, ClientData, AuthResult, error) {
 	var (
 		iData IdentityData
@@ -106,8 +91,7 @@ func Parse(request []byte, verifier *oidc.IDTokenVerifier) (IdentityData, Client
 	)
 	switch {
 	case verifier != nil && req.Token != "":
-		// The context here is used for making requests via remote key set, which does not normally
-		// occur in this case since we use a custom-made OIDC verifier that has already static key set included.
+
 		idt, err := verifier.Verify(context.Background(), req.Token)
 		if err != nil {
 			return iData, cData, res, fmt.Errorf("verify ID token: %w", err)
@@ -124,9 +108,7 @@ func Parse(request []byte, verifier *oidc.IDTokenVerifier) (IdentityData, Client
 		}
 		iData = claims.identityData()
 		authenticated = iData.XUID != ""
-		// The OIDC token does not include the numerical XBL title ID (extraData.titleId) that is present in the
-		// legacy Mojang chain. If the chain is present and valid, we verify it and use its title ID so callers
-		// can keep using IdentityData.TitleID.
+
 		if authenticated && len(req.Certificate.Chain) > 0 {
 			if legacyID, _, legacyAuthed, err := parseLegacyChain(req.Certificate.Chain, t); err == nil && legacyAuthed {
 				if legacyID.TitleID != "" && legacyID.XUID == iData.XUID {
@@ -138,7 +120,7 @@ func Parse(request []byte, verifier *oidc.IDTokenVerifier) (IdentityData, Client
 			return iData, cData, res, fmt.Errorf("validate identity data: %w", err)
 		}
 	case req.Token != "":
-		// Parse the token without verification to extract identity and the public key for encryption.
+
 		tok, err := jwt.ParseSigned(req.Token, []jose.SignatureAlgorithm{jose.ES384, jose.RS256})
 		if err != nil {
 			return iData, cData, res, fmt.Errorf("parse unverified token: %w", err)
@@ -166,9 +148,7 @@ func Parse(request []byte, verifier *oidc.IDTokenVerifier) (IdentityData, Client
 		return iData, cData, res, fmt.Errorf("parse client data: %w", err)
 	}
 	if !strings.Contains(cData.ServerAddress, "://") && strings.Count(cData.ServerAddress, ":") > 1 && cData.ServerAddress[0] != '[' {
-		// IPv6: We can't net.ResolveUDPAddr this directly, because Mojang does
-		// not always put [] around the IP if it isn't added by the player in
-		// the External Server adding screen. We'll have to do this manually:
+
 		ind := strings.LastIndex(cData.ServerAddress, ":")
 		cData.ServerAddress = "[" + cData.ServerAddress[:ind] + "]" + cData.ServerAddress[ind:]
 	}
@@ -178,9 +158,6 @@ func Parse(request []byte, verifier *oidc.IDTokenVerifier) (IdentityData, Client
 	return iData, cData, AuthResult{PublicKey: key, XBOXLiveAuthenticated: authenticated}, nil
 }
 
-// parseLegacyChain verifies the legacy Mojang chain and returns IdentityData from extraData,
-// the public key used for verification (and for client data), and a bool indicating if the chain was
-// authenticated by Xbox Live.
 func parseLegacyChain(chain []string, now time.Time) (IdentityData, *ecdsa.PublicKey, bool, error) {
 	if len(chain) == 0 {
 		return IdentityData{}, nil, false, fmt.Errorf("decode chain: no elements")
@@ -191,7 +168,6 @@ func parseLegacyChain(chain []string, now time.Time) (IdentityData, *ecdsa.Publi
 		return IdentityData{}, nil, false, fmt.Errorf("parse token 0: %w", err)
 	}
 
-	// The first token holds the client's public key in the x5u (it's self signed).
 	raw := tok.Headers[0].ExtraHeaders["x5u"]
 	if err := parseAsKey(raw, key); err != nil {
 		return IdentityData{}, nil, false, fmt.Errorf("parse x5u: %w", err)
@@ -205,7 +181,7 @@ func parseLegacyChain(chain []string, now time.Time) (IdentityData, *ecdsa.Publi
 
 	switch len(chain) {
 	case 1:
-		// Player was not authenticated with XBOX Live, meaning the one token in here is self-signed.
+
 		if err := parseFullClaim(chain[0], key, &identityClaims); err != nil {
 			return IdentityData{}, nil, false, err
 		}
@@ -213,7 +189,7 @@ func parseLegacyChain(chain []string, now time.Time) (IdentityData, *ecdsa.Publi
 			return IdentityData{}, nil, false, fmt.Errorf("validate token 0: %w", err)
 		}
 	case 3:
-		// Player was (or should be) authenticated with XBOX Live, meaning the chain is exactly 3 tokens long.
+
 		var c jwt.Claims
 		if err := parseFullClaim(chain[0], key, &c); err != nil {
 			return IdentityData{}, nil, false, fmt.Errorf("parse token 0: %w", err)
@@ -244,7 +220,6 @@ func parseLegacyChain(chain []string, now time.Time) (IdentityData, *ecdsa.Publi
 	return identityClaims.ExtraData, key, authenticated, nil
 }
 
-// parseLoginRequest parses the structure of a login request from the data passed and returns it.
 func parseLoginRequest(requestData []byte) (*request, error) {
 	buf := bytes.NewBuffer(requestData)
 	var chainLength int32
@@ -273,7 +248,6 @@ func parseLoginRequest(requestData []byte) (*request, error) {
 		r.request.Certificate.Chain = r.Chain
 	}
 
-	// Then check if the authentication type is guest mode.
 	if r.AuthenticationType == 1 {
 		return nil, fmt.Errorf("guest authentication is not supported")
 	}
@@ -289,9 +263,6 @@ func parseLoginRequest(requestData []byte) (*request, error) {
 	return &r.request, nil
 }
 
-// parseFullClaim parses and verifies a full claim using the ecdsa.PublicKey passed. The key passed is updated
-// if the claim holds an identityPublicKey field.
-// The value v passed is decoded into when reading the claims.
 func parseFullClaim(claim string, key *ecdsa.PublicKey, v any) error {
 	tok, err := jwt.ParseSigned(claim, []jose.SignatureAlgorithm{jose.ES384})
 	if err != nil {
@@ -310,8 +281,6 @@ func parseFullClaim(claim string, key *ecdsa.PublicKey, v any) error {
 	return nil
 }
 
-// parseAsKey parses the base64 encoded ecdsa.PublicKey held in k as a public key and sets it to the variable
-// pub passed.
 func parseAsKey(k any, pub *ecdsa.PublicKey) error {
 	kStr, _ := k.(string)
 	if err := ParsePublicKey(kStr, pub); err != nil {
@@ -320,15 +289,11 @@ func parseAsKey(k any, pub *ecdsa.PublicKey) error {
 	return nil
 }
 
-// Encode encodes a login request using the encoded login chain passed and the client data. The request's
-// client data token is signed using the private key passed. It must be the same as the one used to get the
-// login chain. The multiplayer token is used as the Token field in the connection request.
 func Encode(loginChain string, data ClientData, key *ecdsa.PrivateKey, token string, legacy bool) []byte {
-	// We first decode the login chain we actually got in a new certificate.
+
 	cert := &certificate{}
 	_ = json.Unmarshal([]byte(loginChain), &cert)
 
-	// We parse the header of the first claim it has in the chain, which will soon be the second claim.
 	keyData := MarshalPublicKey(&key.PublicKey)
 	tok, _ := jwt.ParseSigned(cert.Chain[0], []jose.SignatureAlgorithm{jose.ES384})
 
@@ -350,21 +315,18 @@ func Encode(loginChain string, data ClientData, key *ecdsa.PrivateKey, token str
 
 	req := &request{
 		Certificate: certificate{
-			// We add our own claim at the start of the chain.
+
 			Chain: append(chain{firstJWT}, cert.Chain...),
 		},
 		Token:  token,
 		Legacy: legacy,
 	}
-	// We create another token this time, which is signed the same as the claim we just inserted in the chain,
-	// just now it contains client data.
+
 	req.RawToken, _ = jwt.Signed(signer).Claims(data).Serialize()
 
 	return encodeRequest(req)
 }
 
-// encodeRequest encodes the request passed to a byte slice which is suitable for setting to the Connection
-// Request field in a Login packet.
 func encodeRequest(req *request) []byte {
 	chainBytes, _ := json.Marshal(req)
 
@@ -377,12 +339,6 @@ func encodeRequest(req *request) []byte {
 	return buf.Bytes()
 }
 
-// EncodeOffline creates a login request using the identity data and client data passed.
-// The private key passed will be used to self-sign the JWTs.
-//
-// When legacy is true, a self-signed chain with extraData is produced for pre-1.26.10
-// servers. When false, a self-signed OIDC multiplayer token is produced with a dummy
-// certificate chain.
 func EncodeOffline(identityData IdentityData, data ClientData, key *ecdsa.PrivateKey, legacy bool) []byte {
 	keyData := MarshalPublicKey(&key.PublicKey)
 	claims := jwt.Claims{
@@ -416,42 +372,30 @@ func EncodeOffline(identityData IdentityData, data ClientData, key *ecdsa.Privat
 			PlayFabTitleID:  identityData.PlayFabTitleID,
 		}).Serialize()
 	}
-	// We create another token this time, which is signed the same as the claim we just inserted in the chain,
-	// just now it contains client data.
+
 	req.RawToken, _ = jwt.Signed(signer).Claims(data).Serialize()
 
 	return encodeRequest(req)
 }
 
-// tokenClaims holds the claims for the multiplayer token from the first chain,
-// which contains the fields related to the identity of the player.
 type tokenClaims struct {
 	jwt.Claims
 
-	// IdentityProviderType is seemingly the underlying identity provider
-	// used to sign in to the authorization service. It is always 'PlayFab'.
 	IdentityProviderType string `json:"ipt"`
-	// PlayFabID is the PlayFab entity ID for the authenticated player.
-	// It is the ID for the master player account of the player, which
-	// is shared across multiple PlayFab titles published by Mojang.
+
 	PlayFabID string `json:"mid"`
-	// PlayFabTitleID is the title ID specific to PlayFab.
-	// It is typically '20CA2' for the base version of the game.
+
 	PlayFabTitleID string `json:"tid"`
-	// ClientPublicKey is the public key of the client used to sign the client data
-	// and to initialise the encryption in the handshake.
+
 	ClientPublicKey string `json:"cpk"`
-	// XUID is the ID of the authenticated player specific to Xbox Live.
+
 	XUID string `json:"xid"`
-	// DisplayName is the in-game name for the authenticated player.
+
 	DisplayName string `json:"xname"`
-	// Identity is the UUID of the player. It is only set for offline logins where
-	// the UUID cannot be derived from the XUID.
+
 	Identity string `json:"leguuid,omitempty"`
 }
 
-// identityData converts the OIDC tokenClaims into IdentityData.
-// Fields that exist in the legacy chain's extraData are filled to keep behavior consistent.
 func (tc tokenClaims) identityData() IdentityData {
 	identity := tc.Identity
 	if identity == "" {
@@ -470,35 +414,27 @@ func (tc tokenClaims) identityData() IdentityData {
 	}
 }
 
-// identityFromXUID returns the UUID derived from the player's XUID claimed
-// from the new multiplayer token.
 func identityFromXUID(xuid string) uuid.UUID {
-	// See [github.com/google/uuid.NewHash], This takes 'pocket-auth-1-uuid:' as
-	// the name-space instead of UUID and uses the player's XUID to compute a v3 UUID.
+
 	hash := md5.New()
 	hash.Write([]byte("pocket-auth-1-xuid:"))
 	hash.Write([]byte(xuid))
 	s := hash.Sum(nil)
 	var id uuid.UUID
 	copy(id[:], s)
-	id[6] = (id[6] & 0x0f) | 0x30 // Version 3
-	id[8] = (id[8] & 0x3f) | 0x80 // RFC 4122 variant
+	id[6] = (id[6] & 0x0f) | 0x30
+	id[8] = (id[8] & 0x3f) | 0x80
 	return id
 }
 
-// identityClaims holds the claims for the last token in the chain, which contains the IdentityData of the
-// player.
 type identityClaims struct {
 	jwt.Claims
 
-	// ExtraData holds the extra data of this claim, which is the IdentityData of the player.
 	ExtraData IdentityData `json:"extraData"`
 
 	IdentityPublicKey string `json:"identityPublicKey"`
 }
 
-// Validate validates the identity claims held by the struct and returns an error if any illegal data was
-// encountered.
 func (c identityClaims) Validate(e jwt.Expected) error {
 	if err := c.Claims.Validate(e); err != nil {
 		return err
@@ -506,17 +442,13 @@ func (c identityClaims) Validate(e jwt.Expected) error {
 	return c.ExtraData.Validate()
 }
 
-// identityPublicKeyClaims holds the claims for a JWT that holds an identity public key.
 type identityPublicKeyClaims struct {
 	jwt.Claims
 
-	// IdentityPublicKey holds a serialised ecdsa.PublicKey used in the next JWT in the chain.
 	IdentityPublicKey    string `json:"identityPublicKey"`
 	CertificateAuthority bool   `json:"certificateAuthority,omitempty"`
 }
 
-// ParsePublicKey parses an ecdsa.PublicKey from the base64 encoded public key data passed and sets it to a
-// pointer. If parsing failed or if the public key was not of the type ECDSA, an error is returned.
 func ParsePublicKey(b64Data string, key *ecdsa.PublicKey) error {
 	data, err := base64.StdEncoding.DecodeString(b64Data)
 	if err != nil {
@@ -534,7 +466,6 @@ func ParsePublicKey(b64Data string, key *ecdsa.PublicKey) error {
 	return nil
 }
 
-// MarshalPublicKey marshals an ecdsa.PublicKey to a base64 encoded binary representation.
 func MarshalPublicKey(key *ecdsa.PublicKey) string {
 	data, _ := x509.MarshalPKIXPublicKey(key)
 	return base64.StdEncoding.EncodeToString(data)

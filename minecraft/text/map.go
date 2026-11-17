@@ -145,8 +145,6 @@ var strMap = map[string]string{
 	"resin":       Resin,
 }
 
-// minecraftReplacer and ansiReplacer are used to translate ANSI formatting codes to Minecraft formatting
-// codes and vice versa.
 var minecraftReplacer *strings.Replacer
 
 func init() {

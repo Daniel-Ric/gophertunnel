@@ -19,16 +19,10 @@ const (
 	ClientInputLockMoveRight
 )
 
-// UpdateClientInputLocks is sent by the server to the client to lock specific player inputs such as camera
-// rotation, movement, jumping, sneaking, mounting or individual directional movement.
 type UpdateClientInputLocks struct {
-	// Locks is a set of flags that specify which client inputs are disabled, such as whether the player can
-	// move, rotate the camera, jump, sneak or mount/dismount entities. It is a combination of the
-	// ClientInputLock constants above.
 	Locks uint32
 }
 
-// ID ...
 func (pk *UpdateClientInputLocks) ID() uint32 {
 	return IDUpdateClientInputLocks
 }

@@ -158,32 +158,22 @@ const (
 	DisconnectReasonSubClientLoginNotBound
 )
 
-// Disconnect may be sent by the server to disconnect the client using an optional message to send as the
-// disconnect screen.
 type Disconnect struct {
-	// Reason is the reason for the disconnection. This affects the error code displayed on the Ore UI
-	// disconnection screen and is one of the constants above.
 	Reason int32
-	// HideDisconnectionScreen specifies if the disconnection screen should be hidden when the client is
-	// disconnected, meaning it will be sent directly to the main menu.
+
 	HideDisconnectionScreen bool
-	// Message is an optional message to show when disconnected. This message is only written if the
-	// HideDisconnectionScreen field is set to false.
+
 	Message string
-	// FilteredMessage is a filtered version of Message with all the profanity removed. The client will use
-	// this over Message if this field is not empty and they have the "Filter Profanity" setting enabled.
+
 	FilteredMessage string
 }
 
-// ID ...
 func (*Disconnect) ID() uint32 {
 	return IDDisconnect
 }
 
 func (pk *Disconnect) Marshal(io protocol.IO) {
 	io.Varint32(&pk.Reason)
-	// The message variant selector is a varuint32 on the wire. Keep the
-	// existing bool API while converting it to the canonical selector.
 	messageSkipped := uint32(0)
 	if pk.HideDisconnectionScreen {
 		messageSkipped = 1

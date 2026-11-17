@@ -9,17 +9,12 @@ import (
 	"time"
 )
 
-// Do queries a server at the address passed using the UT3 query protocol. If the server responds, a map
-// containing information is returned.
-// Note that some servers do not support querying, in which case the query will time out. Do will take at
-// most five seconds to try and get the query information.
 func Do(address string) (information map[string]string, err error) {
 	conn, err := net.Dial("udp", address)
 	if err != nil {
 		return nil, fmt.Errorf("dial udp: %w", err)
 	}
-	// We set a deadline of five seconds: There is no point waiting even longer if the query isn't finished
-	// by then.
+
 	if err := conn.SetDeadline(time.Now().Add(time.Second * 5)); err != nil {
 		return nil, err
 	}
@@ -35,8 +30,6 @@ func Do(address string) (information map[string]string, err error) {
 	}
 	b.Reset()
 
-	// This data buffer is way too big for the first response, but that is fine, as we re-use it for the next
-	// response.
 	data := make([]byte, math.MaxUint16)
 	n, err := conn.Read(data)
 	if err != nil {

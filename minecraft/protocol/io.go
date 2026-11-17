@@ -9,9 +9,6 @@ import (
 	"golang.org/x/exp/constraints"
 )
 
-// IO represents a packet IO direction. Implementations of this interface are Reader and Writer. Reader reads
-// data from the input stream into the pointers passed, whereas Writer writes the values the pointers point to
-// to the output stream.
 type IO interface {
 	Uint16(x *uint16)
 	Int16(x *int16)
@@ -29,7 +26,7 @@ type IO interface {
 	Varuint64(x *uint64)
 	Varint32(x *int32)
 	Varuint32(x *uint32)
-	// ActorRuntimeID and ActorUniqueID mark entity identifiers in packet marshaling.
+
 	ActorRuntimeID(x *uint64)
 	ActorRuntimeIDVarint64(x *int64)
 	ActorRuntimeIDVaruint32(x *uint32)
@@ -76,47 +73,40 @@ type IO interface {
 	InvalidValue(value any, forField, reason string)
 }
 
-// Marshaler is a type that can be written to or read from an IO.
 type Marshaler interface {
 	Marshal(r IO)
 }
 
-// Slice reads/writes a slice of T with a varuint32 prefix.
 func Slice[T any, S ~*[]T, A PtrMarshaler[T]](r IO, x S) {
 	count := uint32(len(*x))
 	r.Varuint32(&count)
 	SliceOfLen[T, S, A](r, count, x)
 }
 
-// SliceUint8Length reads/writes a slice of T with a uint8 prefix.
 func SliceUint8Length[T any, S *[]T, A PtrMarshaler[T]](r IO, x S) {
 	count := uint8(len(*x))
 	r.Uint8(&count)
 	SliceOfLen[T, S, A](r, uint32(count), x)
 }
 
-// SliceUint32Length reads/writes a slice of T with a uint32 prefix.
 func SliceUint32Length[T any, S ~*[]T, A PtrMarshaler[T]](r IO, x S) {
 	count := uint32(len(*x))
 	r.Uint32(&count)
 	SliceOfLen[T, S, A](r, count, x)
 }
 
-// FuncSliceUint32Length reads/writes a slice of T using function f with a uint32 length prefix.
 func FuncSliceUint32Length[T any, S ~*[]T](r IO, x S, f func(*T)) {
 	count := uint32(len(*x))
 	r.Uint32(&count)
 	FuncSliceOfLen(r, count, x, f)
 }
 
-// FuncSlice reads/writes a slice of T using function f with a varuint32 length prefix.
 func FuncSlice[T any, S ~*[]T](r IO, x S, f func(*T)) {
 	count := uint32(len(*x))
 	r.Varuint32(&count)
 	FuncSliceOfLen(r, count, x, f)
 }
 
-// FuncIOSlice reads/writes a slice of T using a function f with a varuint32 length prefix.
 func FuncIOSlice[T any, S ~*[]T](r IO, x S, f func(IO, *T)) {
 	FuncSlice(r, x, func(v *T) {
 		f(r, v)
@@ -125,7 +115,6 @@ func FuncIOSlice[T any, S ~*[]T](r IO, x S, f func(IO, *T)) {
 
 const maxSliceLength = 1024
 
-// SliceOfLen reads/writes the elements of a slice of type T with length l.
 func SliceOfLen[T any, S ~*[]T, A PtrMarshaler[T]](r IO, l uint32, x S) {
 	limit, ok := r.(sliceReader)
 	if ok {
@@ -138,7 +127,6 @@ func SliceOfLen[T any, S ~*[]T, A PtrMarshaler[T]](r IO, l uint32, x S) {
 	}
 }
 
-// FuncSliceOfLen reads/writes the elements of a slice of type T with length l using func f.
 func FuncSliceOfLen[T any, S ~*[]T](r IO, l uint32, x S, f func(*T)) {
 	limit, ok := r.(sliceReader)
 	if ok {
@@ -155,49 +143,40 @@ type sliceReader interface {
 	SliceLength(value uint32, max uint32)
 }
 
-// FuncIOSliceOfLen reads/writes the elements of a slice of type T with length l using func f.
 func FuncIOSliceOfLen[T any, S ~*[]T](r IO, l uint32, x S, f func(IO, *T)) {
 	FuncSliceOfLen(r, l, x, func(v *T) {
 		f(r, v)
 	})
 }
 
-// PtrMarshaler represents a type that implements Marshaler for its pointer.
 type PtrMarshaler[T any] interface {
 	Marshaler
 	*T
 }
 
-// Single reads/writes a single Marshaler x.
 func Single[T any, S PtrMarshaler[T]](r IO, x S) {
 	x.Marshal(r)
 }
 
-// IntegerFunc reads/writes a value of type S using f, converting between S and the wire type W.
 func IntegerFunc[S, W constraints.Integer](x *S, f func(*W)) {
 	w := W(*x)
 	f(&w)
 	*x = S(w)
 }
 
-// Optional is an optional type in the protocol. If not set, only a false bool is written. If set, a true bool is
-// written and the Marshaler.
 type Optional[T any] struct {
 	set bool
 	val T
 }
 
-// Option creates an Optional[T] with the value passed.
 func Option[T any](val T) Optional[T] {
 	return Optional[T]{set: true, val: val}
 }
 
-// Value returns the value set in the Optional. If no value was set, false is returned.
 func (o Optional[T]) Value() (T, bool) {
 	return o.val, o.set
 }
 
-// OptionalFunc reads/writes an Optional[T].
 func OptionalFunc[T any](r IO, x *Optional[T], f func(*T)) any {
 	r.Bool(&x.set)
 	if x.set {
@@ -206,7 +185,6 @@ func OptionalFunc[T any](r IO, x *Optional[T], f func(*T)) any {
 	return x
 }
 
-// OptionalMarshaler reads/writes an Optional assuming *T implements Marshaler.
 func OptionalMarshaler[T any, A PtrMarshaler[T]](r IO, x *Optional[T]) {
 	r.Bool(&x.set)
 	if x.set {

@@ -4,25 +4,22 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 )
 
-// ClientBoundAttributeLayerSync is sent by the server to synchronise attribute layers with the client.
 type ClientBoundAttributeLayerSync struct {
-	// PayloadType is the type of attribute layer payload. It is one of the protocol.AttributeLayerPayloadType constants.
 	PayloadType uint32
-	// Layers is set if PayloadType is AttributeLayerPayloadTypeUpdateLayers.
+
 	Layers []protocol.AttributeLayerData
-	// LayerName is the attribute layer name, used for UpdateSettings, UpdateEnvironment and RemoveEnvironment.
+
 	LayerName string
-	// DimensionID is the dimension ID, used for UpdateSettings, UpdateEnvironment and RemoveEnvironment.
+
 	DimensionID int32
-	// Settings is set if PayloadType is AttributeLayerPayloadTypeUpdateSettings.
+
 	Settings protocol.AttributeLayerSettings
-	// EnvironmentAttributes is set if PayloadType is AttributeLayerPayloadTypeUpdateEnvironment.
+
 	EnvironmentAttributes []protocol.EnvironmentAttributeData
-	// RemoveAttributeNames is set if PayloadType is AttributeLayerPayloadTypeRemoveEnvironment.
+
 	RemoveAttributeNames []string
 }
 
-// ID ...
 func (*ClientBoundAttributeLayerSync) ID() uint32 {
 	return IDClientBoundAttributeLayerSync
 }

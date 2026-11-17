@@ -26,125 +26,61 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// errListenerClosed stops a connection's read loop when the listener closes before the connection could be
-// delivered to Accept.
 var errListenerClosed = errors.New("listener closed before connection delivery")
 
-// ListenConfig holds settings that may be edited to change behaviour of a Listener.
 type ListenConfig struct {
-	// ErrorLog is a log.Logger that errors that occur during packet handling of
-	// clients are written to. By default, errors are not logged.
+	EarlyConnHandler func(*Conn)
+	OnClientData     func(*Conn)
+
 	ErrorLog *slog.Logger
 
-	// HTTPClient is the HTTP client used for outbound HTTP requests needed by the listener,
-	// such as fetching OpenID configuration/JWKs when authentication is enabled.
-	// If nil, [http.DefaultClient] is used.
 	HTTPClient *http.Client
 
-	// AuthenticationDisabled specifies if authentication of players that join is disabled. If set to true, no
-	// verification will be done to ensure that the player connecting is authenticated using their XBOX Live
-	// account.
 	AuthenticationDisabled bool
 
-	// DisablePacketEncryption disables packet encryption for accepted connections.
-	// Authentication is unaffected. Only use this on trusted networks.
 	DisablePacketEncryption bool
 
-	// MaximumPlayers is the maximum amount of players accepted in the server. If non-zero, players that
-	// attempt to join while the server is full will be kicked during login. If zero, the maximum player count
-	// will be dynamically updated each time a player joins, so that an unlimited amount of players is
-	// accepted into the server.
 	MaximumPlayers int
-	// ListenerGroup shares the active player count between multiple listeners serving one logical server, so
-	// that the MaximumPlayers admission limit and advertised player count apply across all of them. If nil,
-	// the listener uses a private group. All listeners in a group should use the same MaximumPlayers value.
+
 	ListenerGroup *ListenerGroup
-	// LoginTimeout bounds how long a connection may take from being accepted until its Login is verified and,
-	// with encryption, its encrypted handshake completes. Connections that have not authenticated by then are
-	// closed. The rest of the login sequence, such as resource pack downloads, is not bounded. Zero or negative
-	// disables it; around ten seconds suits most servers.
+
 	LoginTimeout time.Duration
 
-	// AllowUnknownPackets specifies if connections of this Listener are allowed to send packets not present
-	// in the packet pool. If false (by default), such packets lead to the connection being closed immediately.
-	// If set to true, the packets will be returned as a packet.Unknown.
 	AllowUnknownPackets bool
 
-	// AllowInvalidPackets specifies if invalid packets (either too few bytes or too many bytes) should be
-	// allowed. If false (by default), such packets lead to the connection being closed immediately. If true,
-	// packets with too many bytes will be returned while packets with too few bytes will be skipped.
 	AllowInvalidPackets bool
 
-	// StatusProvider is the ServerStatusProvider of the Listener. When set to nil, the default provider,
-	// ListenerStatusProvider, is used as provider.
 	StatusProvider ServerStatusProvider
 
-	// AcceptedProtocols is a slice of Protocol accepted by a Listener created with this ListenConfig. The current
-	// Protocol is always added to this slice. Clients with a protocol version that is not present in this slice will
-	// be disconnected.
 	AcceptedProtocols []Protocol
-	// Compression is the packet.Compression to use for packets sent over this Conn. If set to nil, the compression
-	// will default to packet.flateCompression.
-	Compression packet.Compression // TODO: Change this to snappy once Windows crashes are resolved.
-	// CompressionSelector selects a compression algorithm per connection based on the protocol. If nil, it
-	// defaults to a function returning Compression.
+
+	Compression packet.Compression
+
 	CompressionSelector func(proto Protocol) packet.Compression
-	// CompressionThreshold specifies the minimum data size in bytes that triggers compression. Data smaller than this threshold
-	// will not be compressed. If zero, compression threshold will default to 256.
-	// A value of -1 disables compression entirely.
+
 	CompressionThreshold int
-	// FlushRate is the rate at which packets sent are flushed. Packets are buffered for a duration up to
-	// FlushRate and are compressed/encrypted together to improve compression ratios. The lower this
-	// time.Duration, the lower the latency but the less efficient both network and cpu wise.
-	// The default FlushRate (when set to 0) is time.Second/20. If FlushRate is set negative, packets
-	// will not be flushed automatically. In this case, calling `(*Conn).Flush()` is required after any
-	// calls to `(*Conn).Write()` or `(*Conn).WritePacket()` to send the packets over network.
+
 	FlushRate time.Duration
 
-	// ResourcePacks is a slice of resource packs that the listener may hold. Each client will be asked to
-	// download these resource packs upon joining.
-	// Use Listener.AddResourcePack() to add a resource pack and Listener.RemoveResourcePack() to remove a resource pack
-	// after having called ListenConfig.Listen(). Note that these methods will not update resource packs for active connections.
 	ResourcePacks []*resource.Pack
-	// TexturePacksRequired specifies if clients that join must accept the texture pack in order for them to
-	// be able to join the server. If they don't accept, they can only leave the server.
+
 	TexturePacksRequired bool
-	// DisableEducationPacks prevents the built-in Education Edition resource packs from being appended to the
-	// resource pack stack. These packs include vanilla resources such as the particle atlas and may override
-	// equivalent resources from a player's global resource packs.
+
 	DisableEducationPacks bool
-	// ForceDisableVibrantVisuals specifies if the server should force disable vibrant visuals for all clients.
+
 	ForceDisableVibrantVisuals bool
-	// FetchResourcePacks determines which resource packs to send to a client based on its identity and client data.
-	// If set, it will be called before sending the ResourcePacksInfo packet. The returned resource packs
-	// will be forwarded to the client in place of the Listener's current ones.
+
 	FetchResourcePacks func(identityData login.IdentityData, clientData login.ClientData, current []*resource.Pack) []*resource.Pack
-	// ResourcePackDelivery controls how resource pack data is sent to clients. The zero value keeps the
-	// conservative default chunk size and pacing.
+
 	ResourcePackDelivery ResourcePackDeliveryConfig
 
-	// PacketFunc is called whenever a packet is read from or written to a connection returned when using
-	// Listener.Accept. It includes packets that are otherwise covered in the connection sequence, such as the
-	// Login packet. The function is called with the header of the packet and its raw payload, the address
-	// from which the packet originated, and the destination address.
 	PacketFunc func(header packet.Header, payload []byte, src, dst net.Addr)
 
-	// MaxDecompressedLen is the maximum length of a decompressed packet batch to prevent potential exploits. If 0,
-	// the default value is 16MB (16 * 1024 * 1024). Setting this to a negative integer disables the limit.
 	MaxDecompressedLen int
 
-	// Allow filters what connections are allowed to connect to the Server. The
-	// address, identity data, and client data of the connection are passed. If
-	// Allow returns false, the connection is closed with the string returned as
-	// the disconnect message. WARNING: Use the client data at your own risk, it
-	// cannot be trusted because it can be freely changed by the player
-	// connecting.
 	Allow func(addr net.Addr, identityData login.IdentityData, clientData login.ClientData) (string, bool)
 }
 
-// Listener implements a Minecraft listener on top of an unspecific net.Listener. It abstracts away the
-// login sequence of connecting clients and provides the implements the net.Listener interface to provide a
-// consistent API.
 type Listener struct {
 	cfg      ListenConfig
 	listener NetworkListener
@@ -158,24 +94,18 @@ type Listener struct {
 	close    chan struct{}
 
 	key *ecdsa.PrivateKey
-	// verifier is used to verify the OpenID token issued by the authorization service
-	// for authenticating incoming connections. It will be nil if authentication is
-	// disabled on ListenConfig.
+
 	verifier *oidc.IDTokenVerifier
 }
 
-// ListenerGroup shares the active player count between listeners serving one logical server.
 type ListenerGroup struct {
 	playerCount atomic.Int32
 }
 
-// PlayerCount returns the number of active connections across the group.
 func (g *ListenerGroup) PlayerCount() int {
 	return int(g.playerCount.Load())
 }
 
-// add increments the player count if it is below max, returning false if the group is full. A max of zero
-// means no limit.
 func (g *ListenerGroup) add(max int) bool {
 	for {
 		current := g.playerCount.Load()
@@ -192,9 +122,6 @@ func (g *ListenerGroup) remove() {
 	g.playerCount.Add(-1)
 }
 
-// Listen announces on the local network address. The network is typically "raknet".
-// If the host in the address parameter is empty or a literal unspecified IP address, Listen listens on all
-// available unicast and anycast IP addresses of the local system.
 func (cfg ListenConfig) Listen(network string, address string) (*Listener, error) {
 	if cfg.ErrorLog == nil {
 		cfg.ErrorLog = slog.New(internal.DiscardHandler{})
@@ -207,10 +134,6 @@ func (cfg ListenConfig) Listen(network string, address string) (*Listener, error
 	return cfg.ListenNetwork(n, address)
 }
 
-// ListenNetwork announces on the local network address using the Network implementation passed.
-// The network is typically [RakNet]. If the host in the address parameter is empty or a literal
-// unspecified IP address, ListenNetwork listens on all available unicast and anycast IP addresses of
-// the local system.
 func (cfg ListenConfig) ListenNetwork(network Network, address string) (*Listener, error) {
 	if cfg.ErrorLog == nil {
 		cfg.ErrorLog = slog.New(internal.DiscardHandler{})
@@ -271,33 +194,20 @@ func (cfg ListenConfig) ListenNetwork(network Network, address string) (*Listene
 		verifier: verifier,
 	}
 
-	// Actually start listening.
 	go listener.listen()
 	return listener, nil
 }
 
-// Listen announces on the local network address. The network must be "tcp", "tcp4", "tcp6", "unix",
-// "unixpacket" or "raknet". A Listener is returned which may be used to accept connections.
-// If the host in the address parameter is empty or a literal unspecified IP address, Listen listens on all
-// available unicast and anycast IP addresses of the local system.
-// Listen has the default values for the fields of Listener filled out. To use different values for these
-// fields, call &Listener{}.Listen() instead.
 func Listen(network, address string) (*Listener, error) {
 	var lc ListenConfig
 	return lc.Listen(network, address)
 }
 
-// authEnvCache holds authorization environment used to issue or verify
-// the multiplayer token for OpenID authentication. It is cached by authEnv.
 var (
 	authEnvCache   *service.AuthorizationEnvironment
 	authEnvCacheMu sync.Mutex
 )
 
-// authEnv returns the authorization environment that can be used for issuing
-// or verifying the multiplayer token for OpenID authentication.
-// This method is only called once and cached globally which means it will
-// use the HTTP client from the first caller's context (oauth2.HTTPClient).
 func authEnv(ctx context.Context) (*service.AuthorizationEnvironment, error) {
 	authEnvCacheMu.Lock()
 	defer authEnvCacheMu.Unlock()
@@ -326,9 +236,6 @@ func authEnv(ctx context.Context) (*service.AuthorizationEnvironment, error) {
 	return e, nil
 }
 
-// oidcVerifier returns the OpenID token verifier that could be used for
-// authenticating new multiplayer tokens issued by the authorization service
-// of Minecraft.
 func oidcVerifier(ctx context.Context) (*oidc.IDTokenVerifier, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -341,14 +248,10 @@ func oidcVerifier(ctx context.Context) (*oidc.IDTokenVerifier, error) {
 	if err != nil {
 		return nil, fmt.Errorf("obtain environment for authorization: %w", err)
 	}
-	// Verifier already caches the *oidc.IDTokenVerifier so we don't need to cache it here.
+
 	return e.VerifierContext(ctx)
 }
 
-// Accept accepts a fully connected (on Minecraft layer) connection which is ready to receive and send
-// packets. It is recommended to cast the net.Conn returned to a *minecraft.Conn so that it is possible to
-// use the Conn.ReadPacket() and Conn.WritePacket() methods.
-// Accept returns an error if the listener is closed.
 func (listener *Listener) Accept() (net.Conn, error) {
 	select {
 	case conn := <-listener.incoming:
@@ -358,9 +261,6 @@ func (listener *Listener) Accept() (net.Conn, error) {
 	}
 }
 
-// Disconnect disconnects a Minecraft Conn passed by first sending a disconnect with the message passed, and
-// closing the connection after. If the message passed is empty, the client will be immediately sent to the
-// server list instead of a disconnect screen.
 func (listener *Listener) Disconnect(conn *Conn, message string) error {
 	_ = conn.WritePacket(&packet.Disconnect{
 		HideDisconnectionScreen: message == "",
@@ -369,16 +269,12 @@ func (listener *Listener) Disconnect(conn *Conn, message string) error {
 	return conn.close(conn.closeErr(message))
 }
 
-// AddResourcePack adds a new resource pack to the listener's resource packs.
-// Note: This method will not update resource packs for active connections.
 func (listener *Listener) AddResourcePack(pack *resource.Pack) {
 	listener.packsMu.Lock()
 	defer listener.packsMu.Unlock()
 	listener.packs = append(listener.packs, pack)
 }
 
-// RemoveResourcePack removes a resource pack from the listener's configuration by its UUID.
-// Note: This method will not update resource packs for active connections.
 func (listener *Listener) RemoveResourcePack(uuid string) {
 	listener.packsMu.Lock()
 	listener.packs = slices.DeleteFunc(listener.packs, func(pack *resource.Pack) bool {
@@ -387,23 +283,18 @@ func (listener *Listener) RemoveResourcePack(uuid string) {
 	listener.packsMu.Unlock()
 }
 
-// Addr returns the address of the underlying listener.
 func (listener *Listener) Addr() net.Addr {
 	return listener.listener.Addr()
 }
 
-// Close closes the listener and the underlying net.Listener. Pending calls to Accept will fail immediately.
 func (listener *Listener) Close() error {
 	return listener.listener.Close()
 }
 
-// PlayerCount returns the number of active connections.
 func (listener *Listener) PlayerCount() int {
 	return listener.group.PlayerCount()
 }
 
-// updatePongData updates the pong data of the listener using the current only players, maximum players and
-// server name of the listener, provided the listener isn't currently hijacking the pong of another server.
 func (listener *Listener) updatePongData() {
 	var (
 		s    = listener.status()
@@ -414,16 +305,13 @@ func (listener *Listener) updatePongData() {
 	}); ok {
 		port = a.AddrPort().Port()
 	}
-	// The field after the game mode is a separate flag: clients drop pongs of ten or more fields unless it
-	// is exactly 1.
+
 	listener.listener.PongData([]byte(fmt.Sprintf("MCPE;%v;%v;%v;%v;%v;%v;%v;%v;%v;%v;%v;%v;%v;",
 		s.ServerName, protocol.CurrentProtocol, protocol.CurrentVersion, s.PlayerCount, s.MaxPlayers,
 		listener.listener.ID(), s.ServerSubName, gameTypeName(s.GameType), 1, port, port, 0, 0,
 	)))
 }
 
-// listen starts listening for incoming connections and packets. When a player is fully connected, it submits
-// it to the accepted connections channel so that a call to Accept can pick it up.
 func (listener *Listener) listen() {
 	listener.updatePongData()
 	go func() {
@@ -445,22 +333,20 @@ func (listener *Listener) listen() {
 	for {
 		netConn, err := listener.listener.Accept()
 		if err != nil {
-			// The underlying listener was closed, meaning we should return immediately so this listener can
-			// close too.
+
 			return
 		}
 		listener.createConn(netConn)
 	}
 }
 
-// createConn creates a connection for the net.Conn passed and adds it to the listener, so that it may be
-// accepted once its login sequence is complete.
 func (listener *Listener) createConn(netConn net.Conn) {
 	listener.packsMu.RLock()
 	packs := slices.Clone(listener.packs)
 	listener.packsMu.RUnlock()
 
 	conn := newConn(netConn, listener.key, listener.cfg.ErrorLog, proto{}, listener.cfg.FlushRate, true)
+	conn.onClientData = listener.cfg.OnClientData
 	conn.disableEncryption = conn.disableEncryption || listener.cfg.DisablePacketEncryption
 	conn.acceptedProto = append(slices.Clone(listener.cfg.AcceptedProtocols), proto{})
 	conn.compression = listener.cfg.Compression
@@ -484,7 +370,7 @@ func (listener *Listener) createConn(netConn net.Conn) {
 	conn.disconnectOnInvalidPacket = !listener.cfg.AllowInvalidPackets
 
 	if !listener.group.add(listener.cfg.MaximumPlayers) {
-		// The server was full. We kick the player immediately and close the connection.
+
 		_ = conn.WritePacket(&packet.PlayStatus{Status: packet.PlayStatusLoginFailedServerFull})
 		_ = conn.close(conn.closeErr("server full"))
 		return
@@ -500,6 +386,9 @@ func (listener *Listener) createConn(netConn net.Conn) {
 			}
 		})
 	}
+	if listener.cfg.EarlyConnHandler != nil {
+		listener.cfg.EarlyConnHandler(conn)
+	}
 	go func() {
 		listener.handleConn(conn)
 		if timer != nil {
@@ -508,10 +397,8 @@ func (listener *Listener) createConn(netConn net.Conn) {
 	}()
 }
 
-// errLoginTimeout is the cause of closing a connection that exceeded ListenConfig.LoginTimeout.
 var errLoginTimeout = errors.New("login timed out")
 
-// status returns the current ServerStatus of the Listener.
 func (listener *Listener) status() ServerStatus {
 	status := listener.cfg.StatusProvider.ServerStatus(listener.group.PlayerCount(), listener.cfg.MaximumPlayers)
 	if status.MaxPlayers == 0 {
@@ -520,8 +407,6 @@ func (listener *Listener) status() ServerStatus {
 	return status
 }
 
-// handleConn handles an incoming connection of the Listener. It will first attempt to get the connection to
-// log in, after which it will expose packets received to the user.
 func (listener *Listener) handleConn(conn *Conn) {
 	defer func() {
 		_ = conn.Close()
@@ -529,8 +414,7 @@ func (listener *Listener) handleConn(conn *Conn) {
 		listener.updatePongData()
 	}()
 	for {
-		// We finally arrived at the packet decoding loop. We constantly decode packets that arrive
-		// and push them to the Conn so that they may be processed.
+
 		receiveErr := false
 		if err := conn.dec.DecodeFunc(func(data []byte) error {
 			loggedInBefore := conn.loggedIn
@@ -541,18 +425,15 @@ func (listener *Listener) handleConn(conn *Conn) {
 			if !loggedInBefore && conn.loggedIn {
 				select {
 				case <-listener.close:
-					// The listener was closed while this one was logged in. Just return so the connection is
-					// closed and cleaned up.
 					return errListenerClosed
 				case listener.incoming <- conn:
-					// The connection was previously not logged in, but was after receiving this packet,
-					// meaning the connection is fully completely now. We add it to the channel so that
-					// a call to Accept() can receive it.
+
 				}
 			}
 			return nil
 		}); err != nil {
-			// A login timeout was logged when it fired.
+			_ = conn.close(err)
+
 			if receiveErr || (!errors.Is(err, net.ErrClosed) && !errors.Is(err, errListenerClosed) && !errors.Is(context.Cause(conn.ctx), errLoginTimeout)) {
 				conn.log.Error(err.Error())
 			}

@@ -16,9 +16,6 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/nbt"
 )
 
-// Reader implements reading operations for reading types from Minecraft packets. Each Packet implementation
-// has one passed to it.
-// Reader's uses should always be encapsulated with a deferred recovery. Reader panics on invalid data.
 type Reader struct {
 	r interface {
 		io.Reader
@@ -29,7 +26,6 @@ type Reader struct {
 	buf           [8]byte
 }
 
-// NewReader creates a new Reader using the io.ByteReader passed as underlying source to read bytes from.
 func NewReader(r interface {
 	io.Reader
 	io.ByteReader
@@ -37,7 +33,6 @@ func NewReader(r interface {
 	return &Reader{r: r, shieldID: shieldID, limitsEnabled: enableLimits}
 }
 
-// Uint8 reads a uint8 from the underlying buffer.
 func (r *Reader) Uint8(x *uint8) {
 	var err error
 	*x, err = r.r.ReadByte()
@@ -46,14 +41,12 @@ func (r *Reader) Uint8(x *uint8) {
 	}
 }
 
-// Int8 reads an int8 from the underlying buffer.
 func (r *Reader) Int8(x *int8) {
 	var b uint8
 	r.Uint8(&b)
 	*x = int8(b)
 }
 
-// Bool reads a bool from the underlying buffer.
 func (r *Reader) Bool(x *bool) {
 	u, err := r.r.ReadByte()
 	if err != nil {
@@ -62,10 +55,8 @@ func (r *Reader) Bool(x *bool) {
 	*x = *(*bool)(unsafe.Pointer(&u))
 }
 
-// errStringTooLong is an error set if a string decoded using the String method has a length that is too long.
 var errStringTooLong = errors.New("string length overflows a 32-bit integer")
 
-// StringUTF ...
 func (r *Reader) StringUTF(x *string) {
 	var length int16
 	r.Int16(&length)
@@ -81,7 +72,6 @@ func (r *Reader) StringUTF(x *string) {
 	*x = *(*string)(unsafe.Pointer(&data))
 }
 
-// String reads a string from the underlying buffer.
 func (r *Reader) String(x *string) {
 	var length uint32
 	r.Varuint32(&length)
@@ -97,7 +87,6 @@ func (r *Reader) String(x *string) {
 	*x = *(*string)(unsafe.Pointer(&data))
 }
 
-// ByteSlice reads a byte slice from the underlying buffer, similarly to String.
 func (r *Reader) ByteSlice(x *[]byte) {
 	var length uint32
 	r.Varuint32(&length)
@@ -113,20 +102,17 @@ func (r *Reader) ByteSlice(x *[]byte) {
 	*x = data
 }
 
-// Vec3 reads three float32s into an mgl32.Vec3 from the underlying buffer.
 func (r *Reader) Vec3(x *mgl32.Vec3) {
 	r.Float32(&x[0])
 	r.Float32(&x[1])
 	r.Float32(&x[2])
 }
 
-// Vec2 reads two float32s into an mgl32.Vec2 from the underlying buffer.
 func (r *Reader) Vec2(x *mgl32.Vec2) {
 	r.Float32(&x[0])
 	r.Float32(&x[1])
 }
 
-// BlockPos reads three varint32s into a BlockPos from the underlying buffer.
 func (r *Reader) BlockPos(x *BlockPos) {
 	r.Varint32(&x[0])
 	r.Varint32(&x[1])
@@ -144,21 +130,18 @@ func (r *Reader) SubChunkPos(x *SubChunkPos) {
 	r.Int32(&x[2])
 }
 
-// SoundPos reads an mgl32.Vec3 that serves as a position for a sound.
 func (r *Reader) SoundPos(x *mgl32.Vec3) {
 	var b BlockPos
 	r.BlockPos(&b)
 	*x = mgl32.Vec3{float32(b[0]) / 8, float32(b[1]) / 8, float32(b[2]) / 8}
 }
 
-// ByteFloat reads a rotational float32 from a single byte.
 func (r *Reader) ByteFloat(x *float32) {
 	var v uint8
 	r.Uint8(&v)
 	*x = float32(v) * (360.0 / 256.0)
 }
 
-// RGB reads a color.RGBA x from three float32s.
 func (r *Reader) RGB(x *color.RGBA) {
 	var red, green, blue float32
 	r.Float32(&red)
@@ -171,7 +154,6 @@ func (r *Reader) RGB(x *color.RGBA) {
 	}
 }
 
-// RGBA reads a color.RGBA x from a uint32.
 func (r *Reader) RGBA(x *color.RGBA) {
 	var v uint32
 	r.Uint32(&v)
@@ -183,7 +165,6 @@ func (r *Reader) RGBA(x *color.RGBA) {
 	}
 }
 
-// BEARGB reads a color.ARGB x from a big endian int32.
 func (r *Reader) BEARGB(x *color.RGBA) {
 	var v int32
 	r.BEInt32(&v)
@@ -195,7 +176,6 @@ func (r *Reader) BEARGB(x *color.RGBA) {
 	}
 }
 
-// Bytes reads the leftover bytes into a byte slice.
 func (r *Reader) Bytes(p *[]byte) {
 	var err error
 	*p, err = io.ReadAll(r.r)
@@ -204,7 +184,6 @@ func (r *Reader) Bytes(p *[]byte) {
 	}
 }
 
-// NBT reads a compound tag into a map from the underlying buffer.
 func (r *Reader) NBT(m *map[string]any, encoding nbt.Encoding) {
 	dec := nbt.NewDecoderWithEncoding(r.r, encoding)
 	dec.AllowZero = true
@@ -214,22 +193,18 @@ func (r *Reader) NBT(m *map[string]any, encoding nbt.Encoding) {
 	}
 }
 
-// NBTList reads a list of NBT tags from the underlying buffer.
 func (r *Reader) NBTList(m *[]any, encoding nbt.Encoding) {
 	if err := nbt.NewDecoderWithEncoding(r.r, encoding).Decode(m); err != nil {
 		r.panic(err)
 	}
 }
 
-// UUID reads a uuid.UUID from the underlying buffer.
 func (r *Reader) UUID(x *uuid.UUID) {
 	var b [16]byte
 	if _, err := io.ReadFull(r.r, b[:]); err != nil {
 		r.panic(err)
 	}
 
-	// The UUIDs we read are Little Endian, but the uuid library is based on Big Endian UUIDs, so we need to
-	// reverse the bytes of the two int64s the UUID is composed of.
 	for i, j := 0, 7; i < j; i, j = i+1, j-1 {
 		b[i], b[j] = b[j], b[i]
 	}
@@ -239,7 +214,6 @@ func (r *Reader) UUID(x *uuid.UUID) {
 	*x = b
 }
 
-// PlayerInventoryAction reads a PlayerInventoryAction.
 func (r *Reader) PlayerInventoryAction(x *UseItemTransactionData) {
 	r.Varint32(&x.LegacyRequestID)
 	OptionalFunc(r, &x.LegacySetItemSlots, func(slots *[]LegacySetItemSlot) {
@@ -260,7 +234,6 @@ func (r *Reader) PlayerInventoryAction(x *UseItemTransactionData) {
 	r.Uint8(&x.ClientCooldownState)
 }
 
-// GameRule reads a GameRule x from the Reader.
 func (r *Reader) GameRule(x *GameRule) {
 	r.String(&x.Name)
 	r.Bool(&x.CanBeModifiedByPlayer)
@@ -287,7 +260,6 @@ func (r *Reader) GameRule(x *GameRule) {
 	}
 }
 
-// EntityMetadata reads an entity metadata map from the underlying buffer into map x.
 func (r *Reader) EntityMetadata(x *EntityMetadata) {
 	*x = EntityMetadata{}
 
@@ -346,7 +318,6 @@ func (r *Reader) EntityMetadata(x *EntityMetadata) {
 	}
 }
 
-// ItemDescriptorCount reads an ItemDescriptorCount i from the underlying buffer.
 func (r *Reader) ItemDescriptorCount(i *ItemDescriptorCount) {
 	var variant uint32
 	r.Varuint32(&variant)
@@ -387,7 +358,6 @@ func (r *Reader) ItemDescriptorCount(i *ItemDescriptorCount) {
 	r.Varint32(&i.Count)
 }
 
-// ItemInstance reads an ItemInstance i from the underlying buffer.
 func (r *Reader) ItemInstance(i *ItemInstance) {
 	x := &i.Stack
 	var id int16
@@ -411,7 +381,6 @@ func (r *Reader) ItemInstance(i *ItemInstance) {
 	x.NBTData, x.CanBePlacedOn, x.CanBreak, x.BlockingTick = data.nbtData, data.canBePlacedOn, data.canBreak, data.blockingTick
 }
 
-// Item reads an ItemStack x from the underlying buffer.
 func (r *Reader) Item(x *ItemStack) {
 	r.Varint32(&x.NetworkID)
 
@@ -422,7 +391,6 @@ func (r *Reader) Item(x *ItemStack) {
 	x.NBTData, x.CanBePlacedOn, x.CanBreak, x.BlockingTick = data.nbtData, data.canBePlacedOn, data.canBreak, data.blockingTick
 }
 
-// StackRequestItem reads the descriptor-based item format used by deprecated craft-result actions.
 func (r *Reader) StackRequestItem(x *StackRequestItem) {
 	var variant uint32
 	r.Varuint32(&variant)
@@ -479,7 +447,6 @@ func (r *Reader) itemUserData(shield bool) itemUserData {
 	return x
 }
 
-// StackRequestAction reads a StackRequestAction from the reader.
 func (r *Reader) StackRequestAction(x *StackRequestAction) {
 	var variant uint32
 	r.Varuint32(&variant)
@@ -500,16 +467,13 @@ func (r *Reader) StackRequestAction(x *StackRequestAction) {
 	(*x).Marshal(r)
 }
 
-// MaterialReducer reads a material reducer from the reader.
 func (r *Reader) MaterialReducer(m *MaterialReducer) {
 	var mix int32
 	r.Varint32(&mix)
-	// The key packs id << 16 | aux; the arithmetic shift keeps negative ids the writer packs.
 	m.InputItem = ItemType{NetworkID: mix >> 16, MetadataValue: uint32(mix & 0xffff)}
 	Slice(r, &m.Outputs)
 }
 
-// EventType reads an Event's type from the reader.
 func (r *Reader) EventType(x *Event) {
 	var t int32
 	r.Varint32(&t)
@@ -518,7 +482,6 @@ func (r *Reader) EventType(x *Event) {
 	}
 }
 
-// EventOrdinal reads an Event's ordinal from the reader.
 func (r *Reader) EventOrdinal(x *Event) {
 	var ordinal uint32
 	if !lookupEventOrdinal(*x, &ordinal) {
@@ -528,7 +491,6 @@ func (r *Reader) EventOrdinal(x *Event) {
 	r.Varuint32(&ordinal)
 }
 
-// TransactionDataType reads an InventoryTransactionData type from the reader.
 func (r *Reader) TransactionDataType(x *InventoryTransactionData) {
 	var transactionType uint32
 	r.Varuint32(&transactionType)
@@ -537,7 +499,6 @@ func (r *Reader) TransactionDataType(x *InventoryTransactionData) {
 	}
 }
 
-// AbilityValue reads an ability value from the reader.
 func (r *Reader) AbilityValue(x *any) {
 	valType, boolVal, floatVal := uint8(0), false, float32(0)
 	r.Uint8(&valType)
@@ -553,7 +514,6 @@ func (r *Reader) AbilityValue(x *any) {
 	}
 }
 
-// Bitset reads a Bitset from the reader.
 func (r *Reader) Bitset(x *Bitset, size int) {
 	*x = NewBitset(size)
 	for i := 0; i < size; i += 7 {
@@ -574,7 +534,6 @@ func (r *Reader) Bitset(x *Bitset, size int) {
 	r.panic(errBitsetOverflow)
 }
 
-// PackSetting reads a PackSetting from the reader.
 func (r *Reader) PackSetting(x *PackSetting) {
 	r.String(&x.Name)
 	var t uint32
@@ -601,7 +560,6 @@ func (r *Reader) PackSetting(x *PackSetting) {
 	}
 }
 
-// ShapeData reads a ShapeData's type from the reader.
 func (r *Reader) ShapeData(x *ShapeData) {
 	var shapeDataType uint32
 	r.Varuint32(&shapeDataType)
@@ -612,7 +570,6 @@ func (r *Reader) ShapeData(x *ShapeData) {
 	(*x).Marshal(r)
 }
 
-// SliceLength validates a length prefix before a slice is allocated.
 func (r *Reader) SliceLength(value uint32, max uint32) {
 	if value > max && r.limitsEnabled {
 		r.panicf("slice length was too long: length of %v (max %v)", value, max)
@@ -622,7 +579,6 @@ func (r *Reader) SliceLength(value uint32, max uint32) {
 	}
 }
 
-// checkRemaining checks that a field's declared length fits within the remaining packet payload.
 func (r *Reader) checkRemaining(length int, field string) {
 	if length < 0 {
 		r.panicf("%s length was negative: %v", field, length)
@@ -632,27 +588,21 @@ func (r *Reader) checkRemaining(length int, field string) {
 	}
 }
 
-// ShieldID returns the shield ID provided to the reader.
 func (r *Reader) ShieldID() int32 {
 	return r.shieldID
 }
 
-// UnknownEnumOption panics with an unknown enum option error.
 func (r *Reader) UnknownEnumOption(value any, enum string) {
 	r.panicf("unknown value '%#v' for enum type '%v'", value, enum)
 }
 
-// InvalidValue panics with an error indicating that the value passed is not valid for a specific field.
 func (r *Reader) InvalidValue(value any, forField, reason string) {
 	r.panicf("invalid value '%v' for %v: %v", value, forField, reason)
 }
 
-// errVarIntOverflow is an error set if one of the Varint methods encounters a varint that does not terminate
-// after 5 or 10 bytes, depending on the data type read into.
 var errVarIntOverflow = errors.New("varint overflows integer")
 var errBitsetOverflow = errors.New("bitset overflows size")
 
-// Varint64 reads up to 10 bytes from the underlying buffer into an int64.
 func (r *Reader) Varint64(x *int64) {
 	var ux uint64
 	for i := 0; i < 70; i += 7 {
@@ -673,42 +623,34 @@ func (r *Reader) Varint64(x *int64) {
 	r.panic(errVarIntOverflow)
 }
 
-// ActorRuntimeID reads an entity runtime ID encoded as an unsigned varint.
 func (r *Reader) ActorRuntimeID(x *uint64) {
 	r.Varuint64(x)
 }
 
-// ActorRuntimeIDVarint64 reads an entity runtime ID encoded as a signed varint.
 func (r *Reader) ActorRuntimeIDVarint64(x *int64) {
 	r.Varint64(x)
 }
 
-// ActorRuntimeIDVaruint32 reads an entity runtime ID encoded as an unsigned 32-bit varint.
 func (r *Reader) ActorRuntimeIDVaruint32(x *uint32) {
 	r.Varuint32(x)
 }
 
-// ActorUniqueID reads an entity unique ID encoded as a signed varint.
 func (r *Reader) ActorUniqueID(x *int64) {
 	r.Varint64(x)
 }
 
-// ActorUniqueIDInt64 reads an entity unique ID encoded as a fixed-width signed integer.
 func (r *Reader) ActorUniqueIDInt64(x *int64) {
 	r.Int64(x)
 }
 
-// ActorUniqueIDUint64 reads an entity unique ID encoded as a fixed-width unsigned integer.
 func (r *Reader) ActorUniqueIDUint64(x *uint64) {
 	r.Uint64(x)
 }
 
-// ActorUniqueIDVaruint64 reads an entity unique ID encoded as an unsigned varint.
 func (r *Reader) ActorUniqueIDVaruint64(x *uint64) {
 	r.Varuint64(x)
 }
 
-// Varuint64 reads up to 10 bytes from the underlying buffer into a uint64.
 func (r *Reader) Varuint64(x *uint64) {
 	var v uint64
 	for i := 0; i < 70; i += 7 {
@@ -726,7 +668,6 @@ func (r *Reader) Varuint64(x *uint64) {
 	r.panic(errVarIntOverflow)
 }
 
-// Varint32 reads up to 5 bytes from the underlying buffer into an int32.
 func (r *Reader) Varint32(x *int32) {
 	var ux uint32
 	for i := 0; i < 35; i += 7 {
@@ -747,7 +688,6 @@ func (r *Reader) Varint32(x *int32) {
 	r.panic(errVarIntOverflow)
 }
 
-// Varuint32 reads up to 5 bytes from the underlying buffer into a uint32.
 func (r *Reader) Varuint32(x *uint32) {
 	var v uint32
 	for i := 0; i < 35; i += 7 {
@@ -765,12 +705,10 @@ func (r *Reader) Varuint32(x *uint32) {
 	r.panic(errVarIntOverflow)
 }
 
-// panicf panics with the format and values passed and assigns the error created to the Reader.
 func (r *Reader) panicf(format string, a ...any) {
 	panic(fmt.Errorf(format, a...))
 }
 
-// panic panics with the error passed, similarly to panicf.
 func (r *Reader) panic(err error) {
 	panic(err)
 }

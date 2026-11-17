@@ -1,30 +1,19 @@
 package packet
 
-// RegisterPacketFromClient registers a function that returns a packet for a
-// specific ID. Packets with this ID coming in from connections will resolve to
-// the packet returned by the function passed. noinspection
 func RegisterPacketFromClient(id uint32, pk func() Packet) {
 	packetsFromClient[id] = pk
 }
 
-// RegisterPacketFromServer registers a function that returns a packet for a
-// specific ID. Packets with this ID coming in from connections will resolve to
-// the packet returned by the function passed. noinspection
 func RegisterPacketFromServer(id uint32, pk func() Packet) {
 	packetsFromServer[id] = pk
 }
 
-// packetsFromClient holds packets that could be sent by the client.
 var packetsFromClient = map[uint32]func() Packet{}
 
-// packetsFromServer holds packets that could be sent by the server.
 var packetsFromServer = map[uint32]func() Packet{}
 
-// Pool is a map holding packets indexed by a packet ID.
 type Pool map[uint32]func() Packet
 
-// NewClientPool returns a new pool containing packets sent by a client.
-// Packets may be retrieved from it simply by indexing it with the packet ID.
 func NewClientPool() Pool {
 	p := Pool{}
 	for id, pk := range packetsFromClient {
@@ -33,8 +22,6 @@ func NewClientPool() Pool {
 	return p
 }
 
-// NewServerPool returns a new pool containing packets sent by a server.
-// Packets may be retrieved from it simply by indexing it with the packet ID.
 func NewServerPool() Pool {
 	p := Pool{}
 	for id, pk := range packetsFromServer {
@@ -44,7 +31,7 @@ func NewServerPool() Pool {
 }
 
 func init() {
-	// TODO: Remove packets from this list that are not sent by the server.
+
 	serverOriginating := map[uint32]func() Packet{
 		IDLogin:                        func() Packet { return &Login{} },
 		IDPlayStatus:                   func() Packet { return &PlayStatus{} },
@@ -65,10 +52,10 @@ func init() {
 		IDTakeItemActor:                func() Packet { return &TakeItemActor{} },
 		IDMoveActorAbsolute:            func() Packet { return &MoveActorAbsolute{} },
 		IDMovePlayer:                   func() Packet { return &MovePlayer{} },
-		// ---
+
 		IDUpdateBlock: func() Packet { return &UpdateBlock{} },
 		IDAddPainting: func() Packet { return &AddPainting{} },
-		// ---
+
 		IDLevelEvent:           func() Packet { return &LevelEvent{} },
 		IDBlockEvent:           func() Packet { return &BlockEvent{} },
 		IDActorEvent:           func() Packet { return &ActorEvent{} },
@@ -81,7 +68,7 @@ func init() {
 		IDBlockPickRequest:     func() Packet { return &BlockPickRequest{} },
 		IDActorPickRequest:     func() Packet { return &ActorPickRequest{} },
 		IDPlayerAction:         func() Packet { return &PlayerAction{} },
-		// ---
+
 		IDHurtArmour:        func() Packet { return &HurtArmour{} },
 		IDSetActorData:      func() Packet { return &SetActorData{} },
 		IDSetActorMotion:    func() Packet { return &SetActorMotion{} },
@@ -100,7 +87,7 @@ func init() {
 		IDGUIDataPickItem:   func() Packet { return &GUIDataPickItem{} },
 		IDAdventureSettings: func() Packet { return &AdventureSettings{} },
 		IDBlockActorData:    func() Packet { return &BlockActorData{} },
-		// ---
+
 		IDLevelChunk:                  func() Packet { return &LevelChunk{} },
 		IDSetCommandsEnabled:          func() Packet { return &SetCommandsEnabled{} },
 		IDSetDifficulty:               func() Packet { return &SetDifficulty{} },
@@ -158,7 +145,7 @@ func init() {
 		IDSetLocalPlayerAsInitialised: func() Packet { return &SetLocalPlayerAsInitialised{} },
 		IDUpdateSoftEnum:              func() Packet { return &UpdateSoftEnum{} },
 		IDNetworkStackLatency:         func() Packet { return &NetworkStackLatency{} },
-		// ---
+
 		IDScriptCustomEvent:           func() Packet { return &ScriptCustomEvent{} },
 		IDSpawnParticleEffect:         func() Packet { return &SpawnParticleEffect{} },
 		IDAvailableActorIdentifiers:   func() Packet { return &AvailableActorIdentifiers{} },
@@ -167,13 +154,13 @@ func init() {
 		IDLevelSoundEvent:             func() Packet { return &LevelSoundEvent{} },
 		IDLevelEventGeneric:           func() Packet { return &LevelEventGeneric{} },
 		IDLecternUpdate:               func() Packet { return &LecternUpdate{} },
-		// ---
+
 		IDClientCacheStatus:             func() Packet { return &ClientCacheStatus{} },
 		IDOnScreenTextureAnimation:      func() Packet { return &OnScreenTextureAnimation{} },
 		IDMapCreateLockedCopy:           func() Packet { return &MapCreateLockedCopy{} },
 		IDStructureTemplateDataRequest:  func() Packet { return &StructureTemplateDataRequest{} },
 		IDStructureTemplateDataResponse: func() Packet { return &StructureTemplateDataResponse{} },
-		// ---
+
 		IDClientCacheBlobStatus:             func() Packet { return &ClientCacheBlobStatus{} },
 		IDClientCacheMissResponse:           func() Packet { return &ClientCacheMissResponse{} },
 		IDEducationSettings:                 func() Packet { return &EducationSettings{} },
@@ -239,9 +226,9 @@ func init() {
 		IDClientCheatAbility:                func() Packet { return &ClientCheatAbility{} },
 		IDCameraPresets:                     func() Packet { return &CameraPresets{} },
 		IDUnlockedRecipes:                   func() Packet { return &UnlockedRecipes{} },
-		// ---
+
 		IDCameraInstruction: func() Packet { return &CameraInstruction{} },
-		// ---
+
 		IDTrimData:                       func() Packet { return &TrimData{} },
 		IDOpenSign:                       func() Packet { return &OpenSign{} },
 		IDAgentAnimation:                 func() Packet { return &AgentAnimation{} },
@@ -258,7 +245,7 @@ func init() {
 		IDCameraAimAssist:                func() Packet { return &CameraAimAssist{} },
 		IDContainerRegistryCleanup:       func() Packet { return &ContainerRegistryCleanup{} },
 		IDMovementEffect:                 func() Packet { return &MovementEffect{} },
-		// ---
+
 		IDCameraAimAssistPresets:             func() Packet { return &CameraAimAssistPresets{} },
 		IDClientCameraAimAssist:              func() Packet { return &ClientCameraAimAssist{} },
 		IDClientMovementPredictionSync:       func() Packet { return &ClientMovementPredictionSync{} },
@@ -297,7 +284,6 @@ func init() {
 	}
 }
 
-// Packets sent by the client:
 func init() {
 	clientOriginating := map[uint32]func() Packet{
 		IDLogin:                             func() Packet { return &Login{} },

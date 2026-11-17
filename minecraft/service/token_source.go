@@ -9,9 +9,6 @@ import (
 	"github.com/df-mc/go-playfab/v2"
 )
 
-// TokenSource returns an implementation of TokenSource, which subsequently supplies the token
-// by either newly requesting or refreshing an existing, cached token. The given [playfab.Client]
-// will be used for logging into Bedrock Edition's network services with the user's PlayFab account.
 func (e *AuthorizationEnvironment) TokenSource(client *playfab.Client, config TokenConfig) TokenSource {
 	defaultUserConfig(&config.User)
 	defaultDeviceConfig(e, &config.Device)
@@ -23,8 +20,6 @@ func (e *AuthorizationEnvironment) TokenSource(client *playfab.Client, config To
 	}
 }
 
-// tokenSource is an implementation of TokenSource that supplies tokens by
-// reusing existing tokens whenever possible.
 type tokenSource struct {
 	client *playfab.Client
 	env    *AuthorizationEnvironment
@@ -34,8 +29,6 @@ type tokenSource struct {
 	mu    sync.Mutex
 }
 
-// ServiceToken supplies a token by either re-using an already requested token, or
-// requesting or renewing the existing token with a valid PlayFab session ticket.
 func (s *tokenSource) ServiceToken(ctx context.Context) (*Token, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -43,8 +36,6 @@ func (s *tokenSource) ServiceToken(ctx context.Context) (*Token, error) {
 		return s.token, nil
 	}
 
-	// PlayFab Client reuses the cached session ticket from last login if valid.
-	// Otherwise, it refreshes the session ticket (approximately 24 hours after login).
 	ticket, err := s.client.SessionTicket(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("request session ticket: %w", err)
@@ -52,8 +43,6 @@ func (s *tokenSource) ServiceToken(ctx context.Context) (*Token, error) {
 	s.config.User.TokenType = TokenTypePlayFab
 	s.config.User.Token = ticket
 
-	// Renewal authenticates with the existing token, so it only works before the
-	// token's hard expiry; otherwise, or on a rejected renewal, start fresh.
 	if tokenRenewable(s.token) {
 		if token, err := s.env.Renew(ctx, s.token, s.config.User); err == nil {
 			s.token = token
@@ -69,8 +58,6 @@ func (s *tokenSource) ServiceToken(ctx context.Context) (*Token, error) {
 	return s.token, nil
 }
 
-// tokenRenewable reports whether tok can still authenticate a renewal request,
-// i.e. it has not passed its hard expiry (ValidUntil).
 func tokenRenewable(tok *Token) bool {
 	return tok != nil && tok.AuthorizationHeader != "" && time.Now().Before(tok.ValidUntil)
 }

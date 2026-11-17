@@ -13,30 +13,18 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 )
 
-// NetherNet is an implementation of a NetherNet network, a WebRTC-based transport layer protocol.
-// A valid Signaling implementation must be provided before use.
 type NetherNet struct {
-	// Signaling is the interface used to exchange connection details with the remote peers.
-	// When set to nil, either [endpoint.Client] or [endpoint.Handler] will be created and used.
-	// If [endpoint.Client] is specified, the network cannot listen on an address.
-	// If [endpoint.Handler] is specified, the network cannot dial or ping a remote server.
 	Signaling nethernet.Signaling
 
-	// Dialer specifies options for establishing a connection with DialContext.
 	Dialer nethernet.Dialer
-	// ListenConfig specifies options for listening for connections with Listen.
+
 	ListenConfig nethernet.ListenConfig
-	// Log is the logger used by default for Dialer and ListenConfig.
-	// It is useful when registering this network from RegisterNetwork.
+
 	Log *slog.Logger
 }
 
-// Ensure the connection returned by NetherNet.DialContext has the optional
-// packet methods used by Encoder and Decoder, even though DialContext returns it
-// as a net.Conn.
 var _ packet.TransportCapabilities = (*nethernet.Conn)(nil)
 
-// DialContext establishes a connection with the remote NetherNet network using the address.
 func (n NetherNet) DialContext(ctx context.Context, address string) (net.Conn, error) {
 	if n.Signaling == nil {
 		n.Signaling = endpoint.NewClient()
@@ -47,14 +35,10 @@ func (n NetherNet) DialContext(ctx context.Context, address string) (net.Conn, e
 	return n.Dialer.DialContext(ctx, address, n.Signaling)
 }
 
-// DialContextIdentity establishes a connection with the remote NetherNet peer using the
-// JWT token issued by the auth service and the private key bound to the Minecraft connection.
-// If [nethernet.Dialer.Identity] is already set, that identity is used instead. If the JWT token
-// passed is an empty string, DialContextIdentity will attempt to generate a self-signed identity.
 func (n NetherNet) DialContextIdentity(ctx context.Context, address string, token string, privateKey *ecdsa.PrivateKey) (net.Conn, error) {
 	if n.Dialer.Identity == nil {
 		if token == "" {
-			// Vanilla client uses a hard-coded domain as the issuer for the self-signed JWT token when offline.
+
 			var err error
 			n.Dialer.Identity, err = nethernet.SelfSignedIdentity(privateKey, "https://authorization.franchise.minecraft-services.net/")
 			if err != nil {
@@ -68,7 +52,7 @@ func (n NetherNet) DialContextIdentity(ctx context.Context, address string, toke
 			n.Dialer.Identity = &nethernet.Identity{
 				PrivateKey: privateKey,
 				Token:      token,
-				// We need to append '/' on the URL if not present.
+
 				Domain: env.Issuer.JoinPath().String(),
 			}
 		}
@@ -76,10 +60,6 @@ func (n NetherNet) DialContextIdentity(ctx context.Context, address string, toke
 	return n.DialContext(ctx, address)
 }
 
-// PingContext sends a ping to the specified address if the [NetherNet.Signaling]
-// supports sending a ping request to the remote server. Otherwise, it returns an error.
-// If [NetherNet.Signaling] is nil, [endpoint.Client] will be created and used instead.
-// The address must be an HTTP/HTTPS URL with a port.
 func (n NetherNet) PingContext(ctx context.Context, address string) ([]byte, error) {
 	if n.Signaling == nil {
 		n.Signaling = endpoint.NewClient()
@@ -90,19 +70,12 @@ func (n NetherNet) PingContext(ctx context.Context, address string) ([]byte, err
 	return nil, errors.New("minecraft: NetherNet.PingContext: not supported")
 }
 
-// Ensure that the default Signaling Client implementation used by NetherNet satisfies
-// the pinger interface.
 var _ pinger = (*endpoint.Client)(nil)
 
-// pinger is implemented by [nethernet.Signaling] that support sending
-// ping requests to remote servers.
 type pinger interface {
 	PingContext(ctx context.Context, address string) ([]byte, error)
 }
 
-// Listen creates a NetherNet listener using the [NetherNet.Signaling] implementation.
-// If [NetherNet.Signaling] is nil, an HTTP server will be started at the specified address.
-// Unlike [PingContext] and [DialContext], the address should be formatted as 'ip:port'.
 func (n NetherNet) Listen(address string) (_ NetworkListener, err error) {
 	var closeFunc func() error
 	if n.Signaling == nil {
@@ -128,17 +101,12 @@ func (n NetherNet) Listen(address string) (_ NetworkListener, err error) {
 	return netherNetListener{NetworkListener: l, close: closeFunc}, nil
 }
 
-// netherNetListener implements [NetworkListener] with additional handling
-// to close the HTTP server together with the underlying NetworkListener.
 type netherNetListener struct {
 	NetworkListener
-	// close is a function for closing the HTTP server used to listen.
-	// It is only set if the caller did not specify [NetherNet.Signaling]
-	// when calling [NetherNet.Listen].
+
 	close func() error
 }
 
-// Close closes the underlying NetworkListener along with the HTTP server.
 func (n netherNetListener) Close() (err error) {
 	if err2 := n.NetworkListener.Close(); err2 != nil {
 		err = errors.Join(err, err2)
@@ -151,7 +119,6 @@ func (n netherNetListener) Close() (err error) {
 	return err
 }
 
-// init registers the NetherNet network.
 func init() {
 	RegisterNetwork("nethernet", func(l *slog.Logger) Network {
 		return NetherNet{Log: l}

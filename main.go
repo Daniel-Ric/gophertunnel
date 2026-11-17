@@ -12,7 +12,6 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// The following program implements a proxy that forwards players from one local address to a remote address.
 func main() {
 	config := readConfig()
 	token, err := auth.RequestLiveToken()
@@ -27,7 +26,7 @@ func main() {
 	}
 	listener, err := minecraft.ListenConfig{
 		StatusProvider: p,
-	}.Listen("raknet", config.Connection.LocalAddress)
+	}.Listen("nethernet", config.Connection.LocalAddress)
 	if err != nil {
 		panic(err)
 	}
@@ -41,12 +40,11 @@ func main() {
 	}
 }
 
-// handleConn handles a new incoming minecraft.Conn from the minecraft.Listener passed.
 func handleConn(conn *minecraft.Conn, listener *minecraft.Listener, config config, src oauth2.TokenSource) {
 	serverConn, err := minecraft.Dialer{
 		TokenSource: src,
 		ClientData:  conn.ClientData(),
-	}.Dial("raknet", config.Connection.RemoteAddress)
+	}.Dial("nethernet", config.Connection.RemoteAddress)
 	if err != nil {
 		panic(err)
 	}

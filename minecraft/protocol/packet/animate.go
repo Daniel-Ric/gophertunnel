@@ -24,27 +24,18 @@ const (
 	AnimateSwingSourceEvent
 )
 
-// Animate is sent by the server to send a player animation from one player to all viewers of that player. It
-// is used for a couple of actions, such as arm swimming and critical hits.
 type Animate struct {
-	// ActionType is the ID of the animation action to execute. It is one of the action type constants that
-	// may be found above.
 	ActionType uint8
-	// EntityRuntimeID is the runtime ID of the player that the animation should be played upon. The runtime
-	// ID is unique for each world session, and entities are generally identified in packets using this
-	// runtime ID.
+
 	EntityRuntimeID uint64
-	// Data ...
+
 	Data float32
-	// SwingSource is the source for swing actions. It is one of the action type constants that
-	// may be found above.
+
 	SwingSource uint8
-	// Hand is the hand that is animating, used for swing actions. It is one of the protocol.HandSlot
-	// constants.
+
 	Hand uint8
 }
 
-// ID ...
 func (*Animate) ID() uint32 {
 	return IDAnimate
 }

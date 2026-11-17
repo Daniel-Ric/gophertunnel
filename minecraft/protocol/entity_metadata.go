@@ -147,7 +147,6 @@ const (
 	EntityDataKeyNameplateRenderDistanceMax
 )
 
-// Some entity data keys have actor-specific meanings.
 const (
 	EntityDataKeyDisplayFirework      = EntityDataKeyDisplayBlockState
 	EntityDataKeyHorseFlags           = EntityDataKeyDisplayBlockState
@@ -303,11 +302,8 @@ const (
 	EntityDataTypeVec3
 )
 
-// EntityMetadata represents a map that holds metadata associated with an entity. The data held in the map depends on
-// the entity and varies on a per-entity basis.
 type EntityMetadata map[uint32]any
 
-// NewEntityMetadata initializes and returns a new entity metadata map.
 func NewEntityMetadata() EntityMetadata {
 	return map[uint32]any{
 		EntityDataKeyFlags:       int64(0),
@@ -316,7 +312,6 @@ func NewEntityMetadata() EntityMetadata {
 	}
 }
 
-// SetFlag sets a flag with a given index within the entity metadata map.
 func (m EntityMetadata) SetFlag(key uint32, index uint8) {
 	v := m[key]
 	switch key {
@@ -327,7 +322,6 @@ func (m EntityMetadata) SetFlag(key uint32, index uint8) {
 	}
 }
 
-// UnsetFlag unsets a flag with a given index within the entity metadata map.
 func (m EntityMetadata) UnsetFlag(key uint32, index uint8) {
 	v := m[key]
 	switch key {
@@ -338,7 +332,6 @@ func (m EntityMetadata) UnsetFlag(key uint32, index uint8) {
 	}
 }
 
-// Flag returns true if the flag with the index passed is set within the entity metadata.
 func (m EntityMetadata) Flag(key uint32, index uint8) bool {
 	v := m[key]
 	switch key {
